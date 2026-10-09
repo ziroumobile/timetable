@@ -297,13 +297,15 @@ function renderGrid() {
       for (const [t, b] of iv) { if (t > pos) gaps.push([pos, t]); pos = Math.max(pos, b); }
       if (pos < ax.total) gaps.push([pos, ax.total]);
       for (const [t, b] of gaps) {
-        if (b - t < 12) continue;
+        if (b - t < 3) continue;
         const from = ax.yMin(t, false), to = ax.yMin(b, true);
         if (!(to > from)) continue;
         const r = document.createElement("div");
         r.className = "course rest";
-        r.style.cssText = `top:${t + 2}px;height:${b - t - 4}px;left:2px;width:calc(100% - 4px)`;
-        r.innerHTML = "<b>休息</b>";
+        const rh = Math.max(2, b - t - 2);
+        r.style.cssText = `top:${t + 1}px;height:${rh}px;left:2px;width:calc(100% - 4px)`;
+        if (rh < 22) r.classList.add("tiny");
+        r.innerHTML = rh >= 26 ? "<b>休息</b>" : ""; // 太小的格子不寫字,功能照舊(長按看詳情、點一下新增)
         const pseudo = { id: "rest", name: "休息", room: "", note: "", slots: [{ day: d, from, to }] };
         bindPress(r, () => showInfo(pseudo, null, true), () => openCourse(null, { day: d, from, to: Math.min(to, from + 60) }));
         colOf[d].appendChild(r);

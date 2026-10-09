@@ -126,3 +126,4 @@ label textarea{display:block;width:100%;margin-top:4px;background:var(--bg);bord
 .menuPop button{background:none;border:0;color:var(--text);text-align:left;padding:10px 12px;border-radius:8px;font-size:15px}
 .menuPop button.on{background:rgba(158,197,255,.15);color:var(--accent)}
 .course.rest{background:#565d6e;border-color:#565d6e;opacity:1;color:#dfe3ec}
+.course.rest.tiny{padding:0;border-width:1px;border-radius:5px}
