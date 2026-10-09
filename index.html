@@ -25,19 +25,21 @@
     <select id="semSelect"></select>
     <button id="btnSem" class="icon small" title="新增時間表">＋</button>
   </div>
-  <button id="btnAdd" class="fab" title="新增課程">＋</button>
+  <button id="btnAdd" class="fab" title="新增名稱">＋</button>
 </div>
 
 <!-- 課程 dialog -->
 <dialog id="courseDlg">
   <form method="dialog" id="courseForm">
-    <h2 id="dlgTitle">新增課程</h2>
-    <label>課程名稱<input name="name" required maxlength="40"></label>
+    <h2 id="dlgTitle">新增名稱</h2>
+    <label>名稱<input name="name" required maxlength="40"></label>
+    <div class="phr" data-f="name"></div>
     <div class="row">
-      <label>教室<input name="room" maxlength="30"></label>
+      <label>地點<input name="room" maxlength="30"></label>
     </div>
+    <div class="phr" data-f="room"></div>
     <div class="swatches" id="swatches"></div>
-    <h3>上課時間</h3>
+    <h3>時間</h3>
     <div id="slots"></div>
     <button type="button" id="addSlot" class="link">＋ 新增時段</button>
     <div class="actions">

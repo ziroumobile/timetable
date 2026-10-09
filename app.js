@@ -11,7 +11,7 @@ const PERIODS = [
 const PERIOD_H = p => (p.l === "N" ? 28 : 78);
 const HOUR_PX = 56;
 const PALETTE = ["#e0b4a8", "#a9aed0", "#bba0c4", "#b9c9a6", "#cbbd9c", "#a4c0c8", "#c4b5a0", "#c9a0ac", "#9fb4c8", "#a8caa4", "#d6c18a", "#9ed0c4"];
-const LS = { local: "tt.local.courses", sem: "tt.sem2", sems: "tt.sems", opt: "tt.opt" };
+const LS = { local: "tt.local.courses", sem: "tt.sem2", sems: "tt.sems", opt: "tt.opt", phr: "tt.phrases" };
 
 // ---------- 狀態 ----------
 const $ = s => document.querySelector(s);
@@ -213,7 +213,7 @@ const dayOpts = sel => DAYS.map((d, i) => `<option value="${i}" ${i === sel ? "s
 function addSlotRow(s) {
   const div = document.createElement("div");
   div.className = "slot";
-  const roomInput = `<input class="room" placeholder="此時段教室(選填,預設同上)" value="${esc(s.room || "")}">`;
+  const roomInput = `<input class="room" placeholder="此時段地點(選填,預設同上)" value="${esc(s.room || "")}">`;
   if (state.opt.period) {
     div.innerHTML = `<select class="d">${dayOpts(s.day)}</select>
       <select class="s">${periodOpts(periodAtOrAfter(s.from))}</select>
@@ -240,13 +240,39 @@ function readSlot(r) {
   return { day, from: parseT(r.querySelector(".from").value), to: parseT(r.querySelector(".to").value), room };
 }
 
+// ---------- 常用詞 ----------
+const phrases = () => Object.assign({ name: [], room: [] }, JSON.parse(localStorage.getItem(LS.phr) || "{}"));
+function renderPhrases() {
+  const all = phrases();
+  document.querySelectorAll(".phr").forEach(box => {
+    const f = box.dataset.f;
+    box.innerHTML = all[f].map((w, i) => `<span class="chip" data-i="${i}"><b>${esc(w)}</b><i title="移除">✕</i></span>`).join("")
+      + `<button type="button" class="chipAdd" title="把目前輸入的內容存成常用詞">＋</button>`;
+    box.querySelectorAll(".chip").forEach(ch => {
+      ch.querySelector("b").onclick = () => { form[f].value = all[f][+ch.dataset.i]; form[f].focus(); };
+      ch.querySelector("i").onclick = () => {
+        all[f].splice(+ch.dataset.i, 1);
+        localStorage.setItem(LS.phr, JSON.stringify(all)); renderPhrases();
+      };
+    });
+    box.querySelector(".chipAdd").onclick = () => {
+      const v = form[f].value.trim();
+      if (!v) return toast("先在上面輸入內容,再按 ＋ 儲存");
+      if (all[f].includes(v)) return toast("已經存過了");
+      all[f].push(v);
+      localStorage.setItem(LS.phr, JSON.stringify(all)); renderPhrases(); toast("已存成常用詞");
+    };
+  });
+}
+
 function openCourse(c, preset) {
   editing = c;
-  $("#dlgTitle").textContent = c ? "編輯課程" : "新增課程";
+  $("#dlgTitle").textContent = c ? "編輯名稱" : "新增名稱";
   form.name.value = c?.name || "";
   form.room.value = c?.room || "";
   editColor = c?.color || PALETTE[state.courses.length % PALETTE.length];
   renderSwatches();
+  renderPhrases();
   $("#slots").innerHTML = "";
   (c?.slots?.length ? c.slots : [preset || { day: 0, from: 480, to: 540 }]).forEach(addSlotRow);
   $("#btnDelete").style.display = c ? "" : "none";
