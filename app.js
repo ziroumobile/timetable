@@ -19,7 +19,7 @@ const state = {
   courses: [],
   semester: localStorage.getItem(LS.sem) || defaultSemester(),
   semesters: JSON.parse(localStorage.getItem(LS.sems) || "[]"),
-  opt: Object.assign({ weekend: true, off: [], locked: [], night: false, period: false, keys: "7, 12, 18" }, JSON.parse(localStorage.getItem(LS.opt) || "{}")),
+  opt: Object.assign({ weekend: true, off: [], locked: [], ghost: [], night: false, period: false, keys: "7, 12, 18" }, JSON.parse(localStorage.getItem(LS.opt) || "{}")),
   user: null,
 };
 function defaultSemester() {
@@ -219,11 +219,11 @@ function renderGrid() {
     const h = it.bottom - it.top - 4;
     const color = it.c.color || PALETTE[0];
     const el = document.createElement("div");
-    el.className = "course" + (it.lanes > 1 ? " conflict" : "") + (off.has(it.s.day) ? " off" : "");
+    el.className = "course" + (it.lanes > 1 ? " conflict" : "") + (off.has(it.s.day) ? " off" : "") + (isGhost(it.c, it.s) ? " ghost" : "");
     el.style.cssText = `top:${it.top + 2}px;height:${h}px;left:calc(${(it.lane / it.lanes) * 100}% + 2px);width:calc(${100 / it.lanes}% - 4px);background:${color};border-color:${shade(color, -0.35)}`;
     const room = it.s.room || it.c.room;
     el.innerHTML = `<b>${esc(it.c.name)}</b>${room ? `<small>${esc(room)}</small>` : ""}`;
-    bindPress(el, () => showInfo(it.c), () => openCourse(it.c));
+    bindPress(el, () => showInfo(it.c, it.s), () => isLocked(it.c.semester) ? showInfo(it.c, it.s) : openCourse(it.c));
     cols[it.s.day].appendChild(el);
   }
   // 點空白新增
@@ -298,12 +298,28 @@ function bindPress(el, onLong, onTap) {
   el.oncontextmenu = e => e.preventDefault();
   el.onclick = e => { e.stopPropagation(); if (fired) { fired = false; return; } onTap(); };
 }
-function showInfo(c) {
+// 單節課隱形(例如這一節停課/請假):只淡化那一個時段,不影響同一門課的其他時段
+const slotKey = (c, s) => `${c.id}|${s.day}|${s.from}|${s.to}`;
+const isGhost = (c, s) => (state.opt.ghost || []).includes(slotKey(c, s));
+function showInfo(c, slot) {
   $("#infoName").textContent = c.name;
   $("#infoRoom").textContent = c.room || "—";
   $("#infoTimes").innerHTML = c.slots.slice().sort((p, q) => p.day - q.day || p.from - q.from)
     .map(s => `<li>週${DAYS[s.day]} ${fmt(s.from)}–${fmt(s.to)}${s.room && s.room !== c.room ? ` <span class="muted">· ${esc(s.room)}</span>` : ""}</li>`).join("");
   $("#btnInfoEdit").onclick = () => { $("#infoDlg").close(); openCourse(c); };
+  const gb = $("#btnInfoGhost");
+  gb.hidden = !slot;
+  if (slot) {
+    gb.textContent = isGhost(c, slot) ? "取消隱形" : "隱形這一節";
+    gb.onclick = () => {
+      const k = slotKey(c, slot), set = new Set(state.opt.ghost || []);
+      const was = set.has(k);
+      if (was) set.delete(k); else set.add(k);
+      state.opt.ghost = [...set];
+      persistMeta(); $("#infoDlg").close(); renderGrid();
+      toast(was ? "已恢復這一節" : "這一節已隱形,長按方塊可取消");
+    };
+  }
   $("#infoDlg").showModal();
 }
 $("#btnInfoClose").onclick = () => $("#infoDlg").close();

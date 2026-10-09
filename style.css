@@ -85,7 +85,7 @@ label.check input{width:auto;margin:0}
 .course{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;touch-action:manipulation}
 .info p{margin:0;font-size:16px}.info ul{margin:0;padding:0;list-style:none;display:grid;gap:4px;font-size:16px}
 #days .dh{cursor:pointer;-webkit-user-select:none;user-select:none}
-#days .dh.off{opacity:.4;text-decoration:line-through}
+#days .dh.off{opacity:.4}
 .course.off{opacity:.3;filter:saturate(.5)}
 .pill{padding:6px 10px}
 .tabs{flex:1;min-width:0;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
@@ -103,3 +103,4 @@ label.check input{width:auto;margin:0}
 .sheetBtns button{background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:10px}
 .sheetBtns .danger{color:#ff8c8c}
 .install,.sheetBtns button{-webkit-appearance:none;appearance:none}
+.course.ghost{opacity:.15;filter:saturate(.4);outline:1px dashed var(--muted)}
