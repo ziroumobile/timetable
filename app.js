@@ -19,8 +19,11 @@ const state = {
   courses: [],
   semester: localStorage.getItem(LS.sem) || defaultSemester(),
   semesters: JSON.parse(localStorage.getItem(LS.sems) || "[]"),
-  opt: Object.assign({ weekend: true, off: [], locked: [], ghost: [], night: false, period: false, keys: "7, 12, 18" }, JSON.parse(localStorage.getItem(LS.opt) || "{}")),
+  opt: Object.assign({ weekend: true, sunFirst: false, off: [], locked: [], ghost: [], night: false, period: false, keys: "7, 12, 18" }, JSON.parse(localStorage.getItem(LS.opt) || "{}")),
   user: null,
+  view: "month",           // month = 月曆首頁, week = 點進某一週
+  anchor: new Date(),      // 目前選的日期(決定哪一週)
+  month: { y: new Date().getFullYear(), m: new Date().getMonth() },
 };
 function defaultSemester() {
   const d = new Date();
@@ -118,12 +121,24 @@ const parseT = v => { const [h, m] = v.split(":").map(Number); return h * 60 + (
 const periodAtOrAfter = m => { const i = PERIODS.findIndex(p => p.e > m); return i < 0 ? PERIODS.length - 1 : i; };
 const periodAtOrBefore = m => { let r = 0; PERIODS.forEach((p, i) => { if (p.s < m) r = i; }); return r; };
 
+// ---------- 週 / 日期工具 ----------
+// 資料裡 day: 0=週一 … 6=週日。顯示順序由設定決定(一到日 或 日到六)
+const dayOrder = () => state.opt.weekend ? (state.opt.sunFirst ? [6, 0, 1, 2, 3, 4, 5] : [0, 1, 2, 3, 4, 5, 6]) : [0, 1, 2, 3, 4];
+const dayOfDate = d => (d.getDay() + 6) % 7;
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const sameDay = (p, q) => p.getFullYear() === q.getFullYear() && p.getMonth() === q.getMonth() && p.getDate() === q.getDate();
+function weekStart(d) { return addDays(d, state.opt.sunFirst ? -d.getDay() : -dayOfDate(d)); }
+function dateOfDay(di) { // 這一週裡 day index 對應的日期
+  const off = state.opt.sunFirst ? (di === 6 ? 0 : di + 1) : di;
+  return addDays(weekStart(state.anchor), off);
+}
+
 // ---------- 軸線(時間模式 / 節次模式) ----------
 function buildAxis() {
-  const nDays = state.opt.weekend ? 7 : 5;
+  const order = dayOrder(), nDays = order.length;
   const items = [];
   state.courses.filter(c => c.semester === state.semester)
-    .forEach(c => c.slots.forEach(s => { if (s.day < nDays) items.push({ c, s }); }));
+    .forEach(c => c.slots.forEach(s => { if (order.includes(s.day)) items.push({ c, s }); }));
 
   if (state.opt.period) {
     const rows = PERIODS.filter(p => state.opt.night || !"ABCD".includes(p.l));
@@ -141,7 +156,7 @@ function buildAxis() {
       if (rows[r].l === "N") r = Math.min(r + 1, rows.length - 1);
       return [rows[r].s, rows[r].e];
     };
-    return { nDays, items, lines, total: y, yRange, toTime };
+    return { nDays, order, items, lines, total: y, yRange, toTime };
   }
 
   let lo = 7 * 60, hi = 22 * 60;
@@ -150,14 +165,50 @@ function buildAxis() {
   const lines = [];
   for (let h = lo / 60; h <= hi / 60; h++) lines.push({ y: (h * 60 - lo) * px, label: String(h), key: keys.has(h) });
   return {
-    nDays, items, lines, total: (hi - lo) * px,
+    nDays, order, items, lines, total: (hi - lo) * px,
     yRange: s => [(s.from - lo) * px, (s.to - lo) * px],
     toTime: yy => { const m = lo + Math.floor(yy / px / 60) * 60; return [m, m + 60]; },
   };
 }
 
 // ---------- 渲染 ----------
-function renderAll() { renderSemesters(); renderGrid(); renderAccount(); }
+function renderAll() { renderSemesters(); renderAccount(); renderMain(); }
+function renderMain() {
+  const week = state.view === "week";
+  $("#monthView").hidden = week; $("main").hidden = !week;
+  $("#btnBack").hidden = !week;
+  $("#appTitle").hidden = week;
+  if (week) { renderWeekBar(); renderGrid(); } else renderMonth();
+}
+function renderWeekBar() {
+  const s = weekStart(state.anchor), e = addDays(s, 6), f = d => `${d.getMonth() + 1}/${d.getDate()}`;
+  $("#weekLbl").textContent = `${s.getFullYear()}年 ${f(s)} – ${f(e)}`;
+}
+function renderMonth() {
+  const { y, m } = state.month;
+  $("#mTitle").textContent = `${y}年${m + 1}月`;
+  const labels = state.opt.sunFirst ? [6, 0, 1, 2, 3, 4, 5] : [0, 1, 2, 3, 4, 5, 6];
+  $("#mDow").innerHTML = labels.map(i => `<div>${DAYS[i]}</div>`).join("");
+  const first = new Date(y, m, 1), start = weekStart(first);
+  const rows = Math.ceil((Math.round((first - start) / 864e5) + new Date(y, m + 1, 0).getDate()) / 7);
+  const cur = state.courses.filter(c => c.semester === state.semester);
+  const off = new Set(state.opt.off || []), today = new Date();
+  let html = "";
+  for (let i = 0; i < rows * 7; i++) {
+    const d = addDays(start, i), di = dayOfDate(d);
+    const colors = off.has(di) ? [] : [...new Set(cur.filter(c => c.slots.some(s => s.day === di && !isGhost(c, s))).map(c => c.color || PALETTE[0]))].slice(0, 4);
+    html += `<button type="button" class="mc ${d.getMonth() !== m ? "out" : ""} ${sameDay(d, today) ? "today" : ""} ${off.has(di) ? "offd" : ""}" data-t="${d.getTime()}"><span>${d.getDate()}</span><i>${colors.map(k => `<u style="background:${k}"></u>`).join("")}</i></button>`;
+  }
+  $("#mGrid").innerHTML = html;
+  $("#mGrid").querySelectorAll(".mc").forEach(el => { el.onclick = () => { state.anchor = new Date(+el.dataset.t); state.view = "week"; renderMain(); window.scrollTo(0, 0); }; });
+}
+const moveMonth = n => { const d = new Date(state.month.y, state.month.m + n, 1); state.month = { y: d.getFullYear(), m: d.getMonth() }; renderMonth(); };
+$("#mPrev").onclick = () => moveMonth(-1);
+$("#mNext").onclick = () => moveMonth(1);
+$("#mToday").onclick = () => { const t = new Date(); state.month = { y: t.getFullYear(), m: t.getMonth() }; renderMonth(); };
+$("#wPrev").onclick = () => { state.anchor = addDays(state.anchor, -7); renderMain(); };
+$("#wNext").onclick = () => { state.anchor = addDays(state.anchor, 7); renderMain(); };
+$("#btnBack").onclick = () => { state.month = { y: state.anchor.getFullYear(), m: state.anchor.getMonth() }; state.view = "month"; renderMain(); window.scrollTo(0, 0); };
 
 function renderSemesters() {
   const box = $("#semTabs");
@@ -172,7 +223,7 @@ function toggleOff(d) {
   const s = new Set(state.opt.off || []);
   if (s.has(d)) s.delete(d); else s.add(d);
   state.opt.off = [...s];
-  persistMeta(); renderGrid();
+  persistMeta(); renderMain();
   toast(s.has(d) ? `週${DAYS[d]}已標示放假` : `週${DAYS[d]}已恢復`);
 }
 
@@ -180,7 +231,7 @@ function renderGrid() {
   const ax = buildAxis();
   document.documentElement.style.setProperty("--n", ax.nDays);
   const off = new Set(state.opt.off || []);
-  $("#days").innerHTML = "<div></div>" + DAYS.slice(0, ax.nDays).map((d, i) => `<div class="dh ${off.has(i) ? "off" : ""}" data-d="${i}">${d}</div>`).join("");
+  $("#days").innerHTML = "<div></div>" + ax.order.map(i => `<div class="dh ${off.has(i) ? "off" : ""}" data-d="${i}">${DAYS[i]}<span class="dd">${dateOfDay(i).getDate()}</span></div>`).join("");
   $("#days").querySelectorAll(".dh").forEach(el => { el.onclick = () => toggleOff(+el.dataset.d); });
 
   let html = "";
@@ -192,10 +243,11 @@ function renderGrid() {
   });
   if (ax.lines[0]?.center) html += `<div class="hline" style="top:${ax.total - 1}px"></div>`;
   html += `<div style="height:${ax.total}px"></div>`; // 佔 label 欄
-  for (let d = 0; d < ax.nDays; d++) html += `<div class="col" data-day="${d}" style="height:${ax.total}px"></div>`;
+  for (const d of ax.order) html += `<div class="col" data-day="${d}" style="height:${ax.total}px"></div>`;
   const body = $("#body");
   body.innerHTML = html;
   const cols = [...body.querySelectorAll(".col")];
+  const colOf = {}; cols.forEach(col => { colOf[col.dataset.day] = col; });
 
   const items = ax.items.map(({ c, s }) => {
     const r = ax.yRange(s);
@@ -203,7 +255,7 @@ function renderGrid() {
   }).filter(Boolean);
 
   // 同日重疊:並排
-  for (let d = 0; d < ax.nDays; d++) {
+  for (const d of ax.order) {
     const list = items.filter(x => x.s.day === d).sort((a, b) => a.top - b.top || a.bottom - b.bottom);
     let cluster = [], end = -Infinity;
     const flush = () => { const m = Math.max(1, ...cluster.map(x => x.lane + 1)); cluster.forEach(x => (x.lanes = m)); cluster = []; };
@@ -224,7 +276,7 @@ function renderGrid() {
     const room = it.s.room || it.c.room;
     el.innerHTML = `<b>${esc(it.c.name)}</b>${room ? `<small>${esc(room)}</small>` : ""}`;
     bindPress(el, () => showInfo(it.c, it.s), () => isLocked(it.c.semester) ? showInfo(it.c, it.s) : openCourse(it.c));
-    cols[it.s.day].appendChild(el);
+    colOf[it.s.day].appendChild(el);
   }
   // 點空白新增
   cols.forEach(col => {
@@ -241,7 +293,7 @@ function openSheet(sem) {
   sheetSem = sem;
   const n = state.courses.filter(c => c.semester === sem).length;
   $("#sheetName").textContent = sem;
-  $("#sheetCount").textContent = n ? `共 ${n} 門課` : "目前沒有課程";
+  $("#sheetCount").textContent = n ? `共 ${n} 個行程` : "目前沒有行程";
   $("#btnSheetClear").disabled = !n || isLocked(sem);
   $("#btnSheetLock").textContent = isLocked(sem) ? "🔓 解除鎖定" : "🔒 鎖定日期簿";
   $("#btnSheetCopy").disabled = !n;
@@ -276,7 +328,8 @@ $("#btnSheetClear").onclick = async () => {
   const sem = sheetSem;
   if (isLocked(sem)) return toast("已鎖定,先解除鎖定");
   const n = state.courses.filter(c => c.semester === sem).length;
-  if (!confirm(`清除「${sem}」的全部 ${n} 門課?這個動作無法復原。`)) return;
+  if (!confirm(`清除「${sem}」的全部 ${n} 個行程?`)) return;
+  if (!confirm(`再確認一次:真的要清除「${sem}」的所有行程嗎?\n這個動作無法復原。`)) return;
   $("#sheetDlg").close();
   state.courses = state.courses.filter(c => c.semester !== sem);
   if (sem !== state.semester) state.semesters = state.semesters.filter(s => s !== sem);
@@ -316,7 +369,7 @@ function showInfo(c, slot) {
       const was = set.has(k);
       if (was) set.delete(k); else set.add(k);
       state.opt.ghost = [...set];
-      persistMeta(); $("#infoDlg").close(); renderGrid();
+      persistMeta(); $("#infoDlg").close(); renderMain();
       toast(was ? "已恢復這一節" : "這一節已隱形,長按方塊可取消");
     };
   }
@@ -410,7 +463,7 @@ function renderSwatches() {
   document.querySelectorAll(".sw").forEach(el => { el.onclick = () => { editColor = el.dataset.c; renderSwatches(); }; });
 }
 $("#addSlot").onclick = () => addSlotRow({ day: 0, from: 480, to: 540 });
-$("#btnAdd").onclick = () => openCourse(null);
+$("#btnAdd").onclick = () => openCourse(null, { day: dayOfDate(state.anchor), from: 480, to: 540 });
 $("#btnCancel").onclick = () => dlg.close();
 
 form.onsubmit = async e => {
@@ -463,6 +516,7 @@ $("#btnSem").onclick = () => {
 };
 $("#btnSettings").onclick = () => {
   $("#optWeekend").checked = state.opt.weekend;
+  $("#optSunFirst").checked = state.opt.sunFirst;
   $("#optNight").checked = state.opt.night;
   $("#optPeriod").checked = state.opt.period;
   $("#optKeys").value = state.opt.keys;
@@ -472,10 +526,11 @@ $("#btnSettings").onclick = () => {
 };
 $("#setDlg").onclose = () => {
   state.opt.weekend = $("#optWeekend").checked;
+  state.opt.sunFirst = $("#optSunFirst").checked;
   state.opt.night = $("#optNight").checked;
   state.opt.period = $("#optPeriod").checked;
   state.opt.keys = $("#optKeys").value;
-  persistMeta(); renderGrid();
+  persistMeta(); renderMain();
 };
 
 // ---------- 帳號 ----------
@@ -520,7 +575,7 @@ async function onUser(user) {
   state.user = user;
   if (first) {
     const loc = localAll();
-    if (loc.length && confirm(`偵測到本機有 ${loc.length} 門離線課程,要上傳到你的帳號嗎?`)) {
+    if (loc.length && confirm(`偵測到本機有 ${loc.length} 個離線行程,要上傳到你的帳號嗎?`)) {
       const { error } = await sb.from("courses").insert(loc.map(c => ({ ...c, id: uid() })));
       if (error) toast("上傳失敗:" + error.message); else { localSave([]); toast("已上傳"); }
     }
@@ -567,10 +622,10 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catc
 
 // ---------- 新手教學 ----------
 const TUT = [
-  { t: "歡迎使用課表 👋", d: "點課表上的空白格,或右下角的 ＋,就能新增一門課。點已經有的方塊可以編輯。一門課可以有多個時段,例如週二和週四都有課。" },
-  { t: "長按看詳情", d: "按住課程方塊約半秒,會顯示完整的名稱、地點和所有上課時間。" },
+  { t: "歡迎使用行程表 👋", d: "先在月曆點一個日期,進到那一週。點空白格或右下角的 ＋ 就能新增行程,點方塊可以編輯。一個行程可以有多個時段,例如週二和週四都有。" },
+  { t: "長按看詳情", d: "按住行程方塊約半秒,會顯示完整的名稱、地點和所有上課時間。" },
   { t: "常用詞", d: "在「名稱」「地點」輸入條下面按 ＋,可以把目前輸入的字存成常用詞。之後點一下標籤就自動填入,按 ✕ 可移除。" },
-  { t: "補假 / 停課", d: "點上方的星期標題(一、二、三…),那一天的課會整天變半透明;再點一次就恢復。" },
+  { t: "補假 / 停課", d: "點上方的星期標題(一、二、三…),那一天的行程會整天變半透明;再點一次就恢復。" },
 ];
 let tutI = 0;
 const TUT_KEY = "tt.tutorial.hide";

@@ -4,24 +4,38 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#11141b">
-<title>課表</title>
+<title>行程</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="課表">
-<link rel="stylesheet" href="style.css?v=16">
+<meta name="apple-mobile-web-app-title" content="行程">
+<link rel="stylesheet" href="style.css?v=17">
 </head>
 <body>
 <header>
-  <h1>課表</h1>
+  <button id="btnBack" class="chip" hidden>‹ 月曆</button>
+  <h1 id="appTitle">行程</h1>
   <div class="spacer"></div>
   <button id="btnSettings" class="icon" title="設定">⚙</button>
   <button id="btnAuth" class="chip" hidden>登入</button>
 </header>
 
-<main>
+<section id="monthView">
+  <div class="mHead">
+    <button id="mPrev" class="icon" title="上個月">‹</button>
+    <b id="mTitle"></b>
+    <button id="mNext" class="icon" title="下個月">›</button>
+    <div class="spacer"></div>
+    <button id="mToday" class="chip">今天</button>
+  </div>
+  <div id="mDow" class="mGrid dow"></div>
+  <div id="mGrid" class="mGrid"></div>
+</section>
+
+<main hidden>
+  <div class="weekBar"><button id="wPrev" class="icon" title="上一週">‹</button><span id="weekLbl"></span><button id="wNext" class="icon" title="下一週">›</button></div>
   <div id="days" class="days"></div>
   <div id="body" class="body"></div>
 </main>
@@ -75,7 +89,7 @@
     <div class="sheetBtns">
       <button type="button" id="btnSheetCopy">複製日期簿</button>
       <button type="button" id="btnSheetLock">🔒 鎖定日期簿</button>
-      <button type="button" id="btnSheetClear" class="danger">清除全部課程</button>
+      <button type="button" id="btnSheetClear" class="danger">清除所有行程</button>
     </div>
     <div class="actions"><div class="spacer"></div><button type="button" id="btnSheetClose" class="primary">關閉</button></div>
   </div>
@@ -103,6 +117,7 @@
     <h2>設定</h2>
     <h3>顯示</h3>
     <label class="check"><input type="checkbox" id="optWeekend"> 顯示週六、週日</label>
+    <label class="check"><input type="checkbox" id="optSunFirst"> 每週從週日開始(日到六)</label>
     <label>標記的重點時間(小時,逗號分隔)<input id="optKeys" placeholder="7, 12, 18"></label>
     <h3>節次</h3>
     <label class="check"><input type="checkbox" id="optPeriod"> 用「第幾節課」顯示與輸入</label>
@@ -125,7 +140,7 @@
 <dialog id="authDlg">
   <form id="authForm" method="dialog">
     <h2 id="authTitle">登入</h2>
-    <p class="muted" id="authHint">登入後課表會同步到雲端,換裝置也看得到。</p>
+    <p class="muted" id="authHint">登入後行程會同步到雲端,換裝置也看得到。</p>
     <label>Email<input name="email" type="email" required autocomplete="email"></label>
     <label>密碼<input name="password" type="password" required minlength="6" autocomplete="current-password"></label>
     <p id="authMsg" class="msg"></p>
@@ -141,7 +156,7 @@
 <div id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="config.js?v=16"></script>
-<script src="app.js?v=16"></script>
+<script src="config.js?v=17"></script>
+<script src="app.js?v=17"></script>
 </body>
 </html>

@@ -1,6 +1,6 @@
 {
-  "name": "課表",
-  "short_name": "課表",
+  "name": "行程",
+  "short_name": "行程",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
