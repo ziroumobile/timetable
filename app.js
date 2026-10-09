@@ -189,8 +189,7 @@ function renderGrid() {
     el.className = "course" + (it.lanes > 1 ? " conflict" : "");
     el.style.cssText = `top:${it.top + 2}px;height:${h}px;left:calc(${(it.lane / it.lanes) * 100}% + 2px);width:calc(${100 / it.lanes}% - 4px);background:${color};border-color:${shade(color, -0.35)}`;
     const room = it.s.room || it.c.room;
-    el.innerHTML = `<b>${esc(it.c.name)}</b>${room ? `<small>${esc(room)}</small>` : ""}` +
-      (!state.opt.period && h > 64 ? `<small class="t">${fmt(it.s.from)}–${fmt(it.s.to)}</small>` : "");
+    el.innerHTML = `<b>${esc(it.c.name)}</b>${room ? `<small>${esc(room)}</small>` : ""}`;
     bindPress(el, it.c);
     cols[it.s.day].appendChild(el);
   }
