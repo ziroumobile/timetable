@@ -19,7 +19,7 @@ const state = {
   courses: [],
   semester: localStorage.getItem(LS.sem) || defaultSemester(),
   semesters: JSON.parse(localStorage.getItem(LS.sems) || "[]"),
-  opt: Object.assign({ weekend: true, sunFirst: false, rest: false, off: [], locked: [], ghost: [], night: false, period: false, keys: "7, 12, 18" }, JSON.parse(localStorage.getItem(LS.opt) || "{}")),
+  opt: Object.assign({ weekend: true, sunFirst: false, rest: false, notifyOn: false, notifyLead: 0, off: [], locked: [], ghost: [], night: false, period: false, keys: "7, 12, 18" }, JSON.parse(localStorage.getItem(LS.opt) || "{}")),
   user: null,
   view: "week",            // week = 每週課表(預設), month = 行事曆(從左上選單切換)
   anchor: new Date(),      // 目前選的日期(決定哪一週)
@@ -339,7 +339,7 @@ function renderGrid() {
         for (const br of ax.breaks || []) pieces = pieces.flatMap(([p, q]) => (br.y >= q || br.y + br.h <= p) ? [[p, q]] : [[p, br.y], [br.y + br.h, q]].filter(([u, v]) => v - u > 0));
         for (const [pt, pb] of pieces) {
           const r = document.createElement("div");
-          r.className = "course rest";
+          r.className = "course rest" + (off.has(d) ? " off" : "");
           const rh = Math.max(2, pb - pt - 2);
           r.style.cssText = `top:${pt + 1}px;height:${rh}px;left:2px;width:calc(100% - 4px)`;
           if (rh < 22) r.classList.add("tiny");
@@ -739,3 +739,87 @@ $("#tutDlg").onclose = () => {
 };
 $("#btnTutorial").onclick = () => { $("#setDlg").close(); openTutorial(); };
 if (localStorage.getItem(TUT_KEY) !== "1") setTimeout(openTutorial, 500);
+
+// ---------- 公告 / 待辦事項 ----------
+const TODO_KEY = "tt.todos";
+const todos = () => { try { return JSON.parse(localStorage.getItem(TODO_KEY) || "[]"); } catch { return []; } };
+const saveTodos = list => { localStorage.setItem(TODO_KEY, JSON.stringify(list)); renderTodoBadge(); };
+const fmtDue = iso => { const d = new Date(iso); return `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+const LEADS = [[0, "準時"], [10, "提前 10 分鐘"], [30, "提前 30 分鐘"], [60, "提前 1 小時"], [1440, "提前 1 天"]];
+
+function renderTodoBadge() {
+  const n = todos().filter(t => !t.done).length, b = $("#todoBadge");
+  b.hidden = !n; b.textContent = n > 9 ? "9+" : n;
+}
+function renderTodos() {
+  const list = todos().sort((p, q) => (p.done - q.done) || ((p.due ? new Date(p.due) : 8e15) - (q.due ? new Date(q.due) : 8e15)));
+  const now = Date.now();
+  $("#todoList").innerHTML = list.length ? list.map(t => {
+    const late = t.due && !t.done && new Date(t.due).getTime() < now;
+    return `<li class="${t.done ? "done" : ""}" data-id="${t.id}"><input type="checkbox" ${t.done ? "checked" : ""} aria-label="完成"><span class="tx">${esc(t.text)}${t.due ? `<small class="${late ? "late" : ""}">${late ? "已逾時 · " : ""}${fmtDue(t.due)}</small>` : ""}</span><button type="button" class="del" title="刪除">✕</button></li>`;
+  }).join("") : '<li class="empty">還沒有待辦事項</li>';
+  $("#todoList").querySelectorAll("li[data-id]").forEach(li => {
+    li.querySelector("input").onchange = e => { const a2 = todos(), t = a2.find(x => x.id === li.dataset.id); if (t) { t.done = e.target.checked; saveTodos(a2); renderTodos(); } };
+    li.querySelector(".del").onclick = () => { saveTodos(todos().filter(x => x.id !== li.dataset.id)); renderTodos(); };
+  });
+}
+function renderNotifyPrefs() {
+  $("#todoNotifyOn").checked = !!state.opt.notifyOn;
+  $("#todoLead").innerHTML = LEADS.map(([m, l]) => `<option value="${m}" ${m === +state.opt.notifyLead ? "selected" : ""}>${l}</option>`).join("");
+  $("#todoLead").disabled = !state.opt.notifyOn;
+  let note = "到期時間留空的待辦不會通知。通知只會在網頁開著(或已安裝的 App 在背景執行)時送出。";
+  if (!("Notification" in window)) note = "這個瀏覽器不支援系統通知,時間到會改用畫面上的提示。" ;
+  else if (Notification.permission === "denied") note = "瀏覽器已封鎖通知權限,請到網站設定允許通知;目前只會用畫面提示。";
+  $("#todoNote").textContent = note;
+}
+$("#btnTodo").onclick = () => { renderTodos(); renderNotifyPrefs(); $("#todoDlg").showModal(); };
+$("#btnTodoClose").onclick = () => $("#todoDlg").close();
+$("#todoForm").onsubmit = e => {
+  e.preventDefault();
+  const text = $("#todoText").value.trim();
+  if (!text) return;
+  const list = todos();
+  list.push({ id: uid(), text, due: $("#todoDue").value || "", done: false, notified: false });
+  saveTodos(list);
+  $("#todoText").value = ""; $("#todoDue").value = "";
+  renderTodos(); checkNotify();
+};
+$("#todoNotifyOn").onchange = async e => {
+  state.opt.notifyOn = e.target.checked;
+  if (state.opt.notifyOn && "Notification" in window && Notification.permission === "default") {
+    try { await Notification.requestPermission(); } catch {}
+  }
+  persistMeta(); renderNotifyPrefs(); checkNotify();
+};
+$("#todoLead").onchange = e => {
+  state.opt.notifyLead = +e.target.value; persistMeta();
+  saveTodos(todos().map(t => ({ ...t, notified: t.done ? t.notified : false })));
+  checkNotify();
+};
+
+async function fireNotify(t, late) {
+  const body = `${t.text}${t.due ? " · " + fmtDue(t.due) : ""}`;
+  const title = late ? "待辦事項(已逾時)" : "待辦事項提醒";
+  toast("⏰ " + body);
+  if (!("Notification" in window) || Notification.permission !== "granted") return;
+  try {
+    const reg = await navigator.serviceWorker?.ready;
+    if (reg?.showNotification) return void reg.showNotification(title, { body, icon: "icons/icon-192.png", tag: "todo-" + t.id });
+    new Notification(title, { body, icon: "icons/icon-192.png" });
+  } catch {}
+}
+function checkNotify() {
+  if (!state.opt.notifyOn) return;
+  const now = Date.now(), list = todos(); let changed = false;
+  for (const t of list) {
+    if (t.done || !t.due || t.notified) continue;
+    const due = new Date(t.due).getTime();
+    if (Number.isNaN(due) || now < due - state.opt.notifyLead * 60000) continue;
+    t.notified = true; changed = true;
+    fireNotify(t, now > due);
+  }
+  if (changed) { saveTodos(list); if ($("#todoDlg").open) renderTodos(); }
+}
+setInterval(checkNotify, 15000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) checkNotify(); });
+renderTodoBadge(); checkNotify();

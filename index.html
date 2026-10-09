@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="行程">
-<link rel="stylesheet" href="style.css?v=25">
+<link rel="stylesheet" href="style.css?v=26">
 </head>
 <body>
 <header>
@@ -24,6 +24,7 @@
   </div>
   <h1 id="appTitle">行程</h1>
   <div class="spacer"></div>
+  <button id="btnTodo" class="icon todoBtn" title="公告 / 待辦事項" aria-label="公告">📋<span id="todoBadge" class="badge" hidden></span></button>
   <button id="btnSettings" class="icon" title="設定">⚙</button>
   <button id="btnAuth" class="chip" hidden>登入</button>
 </header>
@@ -120,6 +121,24 @@
   </div>
 </dialog>
 
+<!-- 公告 / 待辦 dialog -->
+<dialog id="todoDlg">
+  <div class="info">
+    <h2>公告 · 待辦事項</h2>
+    <form id="todoForm" class="todoAdd">
+      <input id="todoText" placeholder="新增待辦事項" maxlength="80" required>
+      <input id="todoDue" type="datetime-local" aria-label="到期時間(選填)">
+      <button type="submit" class="primary">新增</button>
+    </form>
+    <ul id="todoList" class="todoList"></ul>
+    <h3>提醒</h3>
+    <div class="switchRow"><span>開啟通知</span><label class="switch"><input type="checkbox" id="todoNotifyOn"><span></span></label></div>
+    <label>通知時間<select id="todoLead"></select></label>
+    <p class="muted" id="todoNote"></p>
+    <div class="actions"><div class="spacer"></div><button type="button" id="btnTodoClose" class="primary">關閉</button></div>
+  </div>
+</dialog>
+
 <!-- 設定 dialog -->
 <dialog id="setDlg">
   <form method="dialog">
@@ -167,7 +186,7 @@
 <div id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="config.js?v=25"></script>
-<script src="app.js?v=25"></script>
+<script src="config.js?v=26"></script>
+<script src="app.js?v=26"></script>
 </body>
 </html>
