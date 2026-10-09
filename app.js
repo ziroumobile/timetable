@@ -344,7 +344,7 @@ function renderGrid() {
           r.style.cssText = `top:${pt + 1}px;height:${rh}px;left:2px;width:calc(100% - 4px)`;
           if (rh < 22) r.classList.add("tiny");
           r.innerHTML = rh >= 26 ? "<b>休息</b>" : ""; // 太小的格子不寫字,功能照舊(長按看詳情、點一下新增)
-          bindPress(r, () => showInfo(pseudo, null, true), () => openCourse(null, { day: d, from, to: Math.min(to, from + 60) }));
+          bindPress(r, () => openCourse(null, { day: d, from, to: Math.min(to, from + 60) }), () => showInfo(pseudo, null, true));
           colOf[d].appendChild(r);
         }
       }
@@ -358,7 +358,8 @@ function renderGrid() {
     el.style.cssText = `top:${it.top + 2}px;height:${h}px;left:calc(${(it.lane / it.lanes) * 100}% + 2px);width:calc(${100 / it.lanes}% - 4px);background:${color};border-color:${shade(color, -0.35)}`;
     const room = it.s.room || it.c.room;
     el.innerHTML = `<b>${esc(it.c.name)}</b>${room ? `<small>${esc(room)}</small>` : ""}`;
-    bindPress(el, () => showInfo(it.c, it.s), () => isLocked(it.c.semester) ? showInfo(it.c, it.s) : openCourse(it.c));
+    // 短按看詳情,長按編輯
+    bindPress(el, () => isLocked(it.c.semester) ? showInfo(it.c, it.s) : openCourse(it.c), () => showInfo(it.c, it.s));
     colOf[it.s.day].appendChild(el);
   }
   // 點空白新增
@@ -458,7 +459,7 @@ function showInfo(c, slot, rest) {
       if (was) set.delete(k); else set.add(k);
       state.opt.ghost = [...set];
       persistMeta(); $("#infoDlg").close(); renderMain();
-      toast(was ? "已恢復這一節" : "這一節已隱形,長按方塊可取消");
+      toast(was ? "已恢復這一節" : "這一節已隱形,點方塊在詳情裡可取消");
     };
   }
   $("#infoDlg").showModal();
@@ -714,8 +715,8 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catc
 
 // ---------- 新手教學 ----------
 const TUT = [
-  { t: "歡迎使用行程表 👋", d: "先在月曆點一個日期,進到那一週。點空白格或右下角的 ＋ 就能新增行程,點方塊可以編輯。一個行程可以有多個時段,例如週二和週四都有。" },
-  { t: "長按看詳情", d: "按住行程方塊約半秒,會顯示完整的名稱、地點、所有上課時間和備註。" },
+  { t: "歡迎使用行程表 👋", d: "點空白格或右下角的 ＋ 就能新增行程(左上角 ☰ 可以切換行事曆),點方塊看詳情,長按方塊才是編輯。一個行程可以有多個時段,例如週二和週四都有。" },
+  { t: "短按看詳情、長按編輯", d: "點一下行程方塊,會顯示完整的名稱、地點、所有上課時間和備註。按住約半秒才會進入編輯。詳情視窗裡也有「編輯」按鈕。" },
   { t: "常用詞", d: "在「名稱」「地點」輸入條下面按 ＋,可以把目前輸入的字存成常用詞。之後點一下標籤就自動填入,按 ✕ 可移除。" },
   { t: "補假 / 停課", d: "點上方的星期標題(一、二、三…),那一天的行程會整天變半透明;再點一次就恢復。" },
 ];
