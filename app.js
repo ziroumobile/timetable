@@ -64,7 +64,8 @@ async function reload() {
   try { state.courses = await store.list(); }
   catch (e) { toast("讀取失敗:" + e.message); state.courses = []; }
   const set = new Set([...state.semesters, state.semester, ...state.courses.map(c => c.semester)]);
-  state.semesters = [...set].sort().reverse();
+  const used = new Set(state.courses.map(c => c.semester));
+  state.semesters = [...set].filter(s => used.has(s) || s === state.semester).sort().reverse();
   persistMeta();
   renderAll();
 }
