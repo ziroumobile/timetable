@@ -152,9 +152,10 @@ label textarea{display:block;width:100%;margin-top:4px;background:var(--bg);bord
 .switch span::before{content:"";position:absolute;left:3px;top:3px;width:20px;height:20px;border-radius:50%;background:#e6e8ee;transition:.2s}
 .switch input:checked+span{background:var(--accent)}
 .switch input:checked+span::before{transform:translateX(20px);background:#11141b}
-.sw.custom{display:inline-flex;align-items:center;justify-content:center;position:relative;background:conic-gradient(#e8a0a0,#f2d16b,#7fcf9b,#7fb8e8,#b08ae8,#e8a0a0);color:#11141b;font-weight:700;font-size:16px;overflow:hidden}
-.sw.custom input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer}
 .slot .durs{grid-column:1 / -1;display:flex;flex-wrap:wrap;gap:6px;align-items:center;color:var(--muted);font-size:12px}
 .slot .durs .dur{background:var(--bg);border:1px solid var(--line);border-radius:999px;color:var(--text);padding:4px 10px;font-size:12px}
 .slot input.from,.slot input.to{text-align:center;font-variant-numeric:tabular-nums}
 .slot input.bad{border-color:#ff6b6b;color:#ff8c8c}
+.switch{flex:none;margin:0}
+.switchRow span:first-child{font-size:15px;color:var(--text)}
+select:disabled{opacity:.45}

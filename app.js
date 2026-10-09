@@ -570,12 +570,8 @@ function openCourse(c, preset) {
   dlg.showModal();
 }
 function renderSwatches() {
-  const custom = !PALETTE.includes(editColor);
-  $("#swatches").innerHTML = PALETTE.map(p => `<div class="sw ${p === editColor ? "on" : ""}" data-c="${p}" style="background:${p}"></div>`).join("")
-    + `<label class="sw custom ${custom ? "on" : ""}" title="自訂顏色" style="${custom ? "background:" + editColor : ""}">${custom ? "" : "＋"}<input type="color" value="${/^#[0-9a-f]{6}$/i.test(editColor) ? editColor : "#9ec5ff"}"></label>`;
-  document.querySelectorAll(".sw[data-c]").forEach(el => { el.onclick = () => { editColor = el.dataset.c; renderSwatches(); }; });
-  const pick = $("#swatches .custom input");
-  pick.oninput = () => { editColor = pick.value; $("#swatches .custom").style.background = pick.value; document.querySelectorAll(".sw.on").forEach(x => x.classList.remove("on")); $("#swatches .custom").classList.add("on"); $("#swatches .custom").firstChild.nodeType === 3 && ($("#swatches .custom").firstChild.textContent = ""); };
+  $("#swatches").innerHTML = PALETTE.map(p => `<div class="sw ${p === editColor ? "on" : ""}" data-c="${p}" style="background:${p}"></div>`).join("");
+  document.querySelectorAll(".sw").forEach(el => { el.onclick = () => { editColor = el.dataset.c; renderSwatches(); }; });
 }
 $("#addSlot").onclick = () => addSlotRow({ day: 0, from: 480, to: 540 });
 $("#btnAdd").onclick = () => openCourse(null, { day: dayOfDate(state.anchor), from: 480, to: 540 });
