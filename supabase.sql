@@ -20,3 +20,6 @@ create policy "own select" on public.courses for select using (auth.uid() = user
 create policy "own insert" on public.courses for insert with check (auth.uid() = user_id);
 create policy "own update" on public.courses for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "own delete" on public.courses for delete using (auth.uid() = user_id);
+
+-- 備註欄位(之後新增的功能,若你早就建好資料表,請另外執行這一行)
+alter table public.courses add column if not exists note text;

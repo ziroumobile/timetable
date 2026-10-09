@@ -21,7 +21,7 @@ const state = {
   semesters: JSON.parse(localStorage.getItem(LS.sems) || "[]"),
   opt: Object.assign({ weekend: true, sunFirst: false, off: [], locked: [], ghost: [], night: false, period: false, keys: "7, 12, 18" }, JSON.parse(localStorage.getItem(LS.opt) || "{}")),
   user: null,
-  view: "month",           // month = 月曆首頁, week = 點進某一週
+  view: "week",            // week = 每週課表(預設), month = 行事曆(從左上選單切換)
   anchor: new Date(),      // 目前選的日期(決定哪一週)
   month: { y: new Date().getFullYear(), m: new Date().getMonth() },
 };
@@ -61,7 +61,12 @@ const store = {
   },
   async upsert(c) {
     if (state.user) {
-      const { error } = await sb.from("courses").upsert(c);
+      let { error } = await sb.from("courses").upsert(c);
+      if (error && /note/.test(error.message || "")) { // 雲端還沒加 note 欄位:先存其他資料,提醒一次
+        const { note, ...rest } = c;
+        ({ error } = await sb.from("courses").upsert(rest));
+        if (!error && note) toast("備註尚未同步到雲端,請先在 Supabase 加入 note 欄位");
+      }
       if (error) throw error;
       return;
     }
@@ -72,7 +77,8 @@ const store = {
   async upsertMany(list) {
     if (!list.length) return;
     if (state.user) {
-      const { error } = await sb.from("courses").upsert(list);
+      let { error } = await sb.from("courses").upsert(list);
+      if (error && /note/.test(error.message || "")) ({ error } = await sb.from("courses").upsert(list.map(({ note, ...r }) => r)));
       if (error) throw error;
       return;
     }
@@ -176,8 +182,7 @@ function renderAll() { renderSemesters(); renderAccount(); renderMain(); }
 function renderMain() {
   const week = state.view === "week";
   $("#monthView").hidden = week; $("main").hidden = !week;
-  $("#btnBack").hidden = !week;
-  $("#appTitle").hidden = week;
+  document.querySelectorAll("#menuPop button").forEach(b => b.classList.toggle("on", b.dataset.v === state.view));
   if (week) { renderWeekBar(); renderGrid(); } else renderMonth();
 }
 function renderWeekBar() {
@@ -208,7 +213,16 @@ $("#mNext").onclick = () => moveMonth(1);
 $("#mToday").onclick = () => { const t = new Date(); state.month = { y: t.getFullYear(), m: t.getMonth() }; renderMonth(); };
 $("#wPrev").onclick = () => { state.anchor = addDays(state.anchor, -7); renderMain(); };
 $("#wNext").onclick = () => { state.anchor = addDays(state.anchor, 7); renderMain(); };
-$("#btnBack").onclick = () => { state.month = { y: state.anchor.getFullYear(), m: state.anchor.getMonth() }; state.view = "month"; renderMain(); window.scrollTo(0, 0); };
+// 左上角選單:切換 週課表 / 行事曆
+const menuPop = $("#menuPop");
+$("#btnMenu").onclick = e => { e.stopPropagation(); menuPop.hidden = !menuPop.hidden; };
+document.addEventListener("click", () => { menuPop.hidden = true; });
+menuPop.querySelectorAll("button").forEach(b => {
+  b.onclick = () => {
+    if (b.dataset.v === "month") state.month = { y: state.anchor.getFullYear(), m: state.anchor.getMonth() };
+    state.view = b.dataset.v; menuPop.hidden = true; renderMain(); window.scrollTo(0, 0);
+  };
+});
 
 function renderSemesters() {
   const box = $("#semTabs");
@@ -357,6 +371,8 @@ const isGhost = (c, s) => (state.opt.ghost || []).includes(slotKey(c, s));
 function showInfo(c, slot) {
   $("#infoName").textContent = c.name;
   $("#infoRoom").textContent = c.room || "—";
+  $("#infoNoteBox").hidden = !c.note;
+  $("#infoNote").textContent = c.note || "";
   $("#infoTimes").innerHTML = c.slots.slice().sort((p, q) => p.day - q.day || p.from - q.from)
     .map(s => `<li>週${DAYS[s.day]} ${fmt(s.from)}–${fmt(s.to)}${s.room && s.room !== c.room ? ` <span class="muted">· ${esc(s.room)}</span>` : ""}</li>`).join("");
   $("#btnInfoEdit").onclick = () => { $("#infoDlg").close(); openCourse(c); };
@@ -450,6 +466,7 @@ function openCourse(c, preset) {
   $("#dlgTitle").textContent = c ? "編輯名稱" : "新增名稱";
   form.name.value = c?.name || "";
   form.room.value = c?.room || "";
+  form.note.value = c?.note || "";
   editColor = c?.color || PALETTE[state.courses.length % PALETTE.length];
   renderSwatches();
   renderPhrases();
@@ -476,6 +493,7 @@ form.onsubmit = async e => {
     semester: editing?.semester || state.semester,
     name: form.name.value.trim(),
     room: form.room.value.trim(),
+    note: form.note.value.trim(),
     credits: editing?.credits ?? 0,
     color: editColor,
     slots,
@@ -623,7 +641,7 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catc
 // ---------- 新手教學 ----------
 const TUT = [
   { t: "歡迎使用行程表 👋", d: "先在月曆點一個日期,進到那一週。點空白格或右下角的 ＋ 就能新增行程,點方塊可以編輯。一個行程可以有多個時段,例如週二和週四都有。" },
-  { t: "長按看詳情", d: "按住行程方塊約半秒,會顯示完整的名稱、地點和所有上課時間。" },
+  { t: "長按看詳情", d: "按住行程方塊約半秒,會顯示完整的名稱、地點、所有上課時間和備註。" },
   { t: "常用詞", d: "在「名稱」「地點」輸入條下面按 ＋,可以把目前輸入的字存成常用詞。之後點一下標籤就自動填入,按 ✕ 可移除。" },
   { t: "補假 / 停課", d: "點上方的星期標題(一、二、三…),那一天的行程會整天變半透明;再點一次就恢復。" },
 ];

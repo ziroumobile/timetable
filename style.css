@@ -42,7 +42,7 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 dialog h2{margin:0 0 12px;font-size:18px}
 dialog h3{margin:14px 0 6px;font-size:14px;color:var(--muted)}
 label{display:block;font-size:13px;color:var(--muted);margin-bottom:10px;flex:1}
-label input,label select{display:block;width:100%;margin-top:4px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px;color:var(--text)}
+label input,label select,label textarea{display:block;width:100%;margin-top:4px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px;color:var(--text)}
 label.check{display:flex;align-items:center;gap:8px;color:var(--text);font-size:15px}
 label.check input{width:auto;margin:0}
 .row{display:flex;gap:10px}
@@ -118,3 +118,10 @@ label.check input{width:auto;margin:0}
 .mc.offd span{color:#ff6b6b}
 .mc i{display:flex;gap:3px;flex-wrap:wrap;justify-content:center;font-style:normal}
 .mc u{width:7px;height:7px;border-radius:50%;display:block}
+label textarea{display:block;width:100%;margin-top:4px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px;color:var(--text);font:inherit;resize:vertical}
+.noteText{white-space:pre-wrap;word-break:break-word}
+.menuWrap{position:relative}
+.menuPop{position:absolute;left:0;top:calc(100% + 6px);min-width:150px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:6px;display:grid;gap:2px;box-shadow:0 8px 24px rgba(0,0,0,.45);z-index:40}
+.menuPop[hidden]{display:none}
+.menuPop button{background:none;border:0;color:var(--text);text-align:left;padding:10px 12px;border-radius:8px;font-size:15px}
+.menuPop button.on{background:rgba(158,197,255,.15);color:var(--accent)}

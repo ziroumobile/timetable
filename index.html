@@ -11,18 +11,24 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="行程">
-<link rel="stylesheet" href="style.css?v=17">
+<link rel="stylesheet" href="style.css?v=18">
 </head>
 <body>
 <header>
-  <button id="btnBack" class="chip" hidden>‹ 月曆</button>
+  <div class="menuWrap">
+    <button id="btnMenu" class="icon" title="選單" aria-label="選單">☰</button>
+    <div id="menuPop" class="menuPop" hidden>
+      <button type="button" data-v="week">📅 每週課表</button>
+      <button type="button" data-v="month">🗓 行事曆</button>
+    </div>
+  </div>
   <h1 id="appTitle">行程</h1>
   <div class="spacer"></div>
   <button id="btnSettings" class="icon" title="設定">⚙</button>
   <button id="btnAuth" class="chip" hidden>登入</button>
 </header>
 
-<section id="monthView">
+<section id="monthView" hidden>
   <div class="mHead">
     <button id="mPrev" class="icon" title="上個月">‹</button>
     <b id="mTitle"></b>
@@ -34,7 +40,7 @@
   <div id="mGrid" class="mGrid"></div>
 </section>
 
-<main hidden>
+<main>
   <div class="weekBar"><button id="wPrev" class="icon" title="上一週">‹</button><span id="weekLbl"></span><button id="wNext" class="icon" title="下一週">›</button></div>
   <div id="days" class="days"></div>
   <div id="body" class="body"></div>
@@ -58,6 +64,7 @@
       <label>地點<input name="room" maxlength="30"></label>
     </div>
     <div class="phr" data-f="room"></div>
+    <label>備註(選填)<textarea name="note" rows="2" maxlength="300"></textarea></label>
     <div class="swatches" id="swatches"></div>
     <h3>時間</h3>
     <div id="slots"></div>
@@ -76,6 +83,7 @@
   <div class="info">
     <h2 id="infoName"></h2>
     <h3>地點</h3><p id="infoRoom"></p>
+    <div id="infoNoteBox"><h3>備註</h3><p id="infoNote" class="noteText"></p></div>
     <h3>時間</h3><ul id="infoTimes"></ul>
     <div class="actions"><div class="spacer"></div><button type="button" id="btnInfoGhost">隱形這一節</button><button type="button" id="btnInfoEdit">編輯</button><button type="button" id="btnInfoClose" class="primary">關閉</button></div>
   </div>
@@ -156,7 +164,7 @@
 <div id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="config.js?v=17"></script>
-<script src="app.js?v=17"></script>
+<script src="config.js?v=18"></script>
+<script src="app.js?v=18"></script>
 </body>
 </html>
