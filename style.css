@@ -100,3 +100,6 @@ label.check input{width:auto;margin:0}
 .dots{display:flex;gap:6px;justify-content:center;margin:6px 0 12px}
 .dots i{width:8px;height:8px;border-radius:50%;background:var(--line)}
 .dots i.on{background:var(--accent)}
+.sheetBtns button{background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:10px}
+.sheetBtns .danger{color:#ff8c8c}
+.install,.sheetBtns button{-webkit-appearance:none;appearance:none}
