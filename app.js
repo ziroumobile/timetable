@@ -796,14 +796,24 @@ function renderNotifyPrefs() {
 }
 $("#btnTodo").onclick = () => { renderTodos(); renderNotifyPrefs(); $("#todoDlg").showModal(); };
 $("#btnTodoClose").onclick = () => $("#todoDlg").close();
+$("#todoTime").onblur = e => { const v = parseTimeInput(e.target.value); if (e.target.value.trim() && !Number.isNaN(v) && v < 1440) e.target.value = fmt(v); };
 $("#todoForm").onsubmit = e => {
   e.preventDefault();
   const text = $("#todoText").value.trim();
   if (!text) return;
   const list = todos();
-  list.push({ id: uid(), text, due: $("#todoDue").value || "", done: false, notified: false });
+  // 到期時間:日期 + 24 小時制時間(可直接打 1430、14:30)。只填時間 = 今天;只填日期 = 09:00
+  let due = "";
+  const date = $("#todoDate").value, tm = $("#todoTime").value.trim();
+  if (date || tm) {
+    const mins = tm ? parseTimeInput(tm) : 9 * 60;
+    if (Number.isNaN(mins) || mins >= 1440) return toast("時間格式不對,請用 24 小時制,例如 1430 或 14:30");
+    const d0 = date || `${new Date().getFullYear()}-${pad(new Date().getMonth() + 1)}-${pad(new Date().getDate())}`;
+    due = `${d0}T${pad(Math.floor(mins / 60))}:${pad(mins % 60)}`;
+  }
+  list.push({ id: uid(), text, due, done: false, notified: false });
   saveTodos(list);
-  $("#todoText").value = ""; $("#todoDue").value = "";
+  $("#todoText").value = ""; $("#todoDate").value = ""; $("#todoTime").value = "";
   renderTodos(); checkNotify();
 };
 $("#todoNotifyOn").onchange = async e => {

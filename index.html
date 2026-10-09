@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="行程">
-<link rel="stylesheet" href="style.css?v=28">
+<link rel="stylesheet" href="style.css?v=30">
 </head>
 <body>
 <header>
@@ -127,7 +127,10 @@
     <h2>公告 · 待辦事項</h2>
     <form id="todoForm" class="todoAdd">
       <input id="todoText" placeholder="新增待辦事項" maxlength="80" required>
-      <input id="todoDue" type="datetime-local" aria-label="到期時間(選填)">
+      <div class="dt">
+        <input id="todoDate" type="date" aria-label="到期日期(選填)">
+        <input id="todoTime" type="text" inputmode="numeric" autocomplete="off" placeholder="24 小時制 1430" maxlength="6" aria-label="到期時間 24 小時制">
+      </div>
       <button type="submit" class="primary">新增</button>
     </form>
     <ul id="todoList" class="todoList"></ul>
@@ -186,7 +189,7 @@
 <div id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="config.js?v=28"></script>
-<script src="app.js?v=28"></script>
+<script src="config.js?v=30"></script>
+<script src="app.js?v=30"></script>
 </body>
 </html>
