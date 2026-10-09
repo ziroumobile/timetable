@@ -5,7 +5,7 @@ const PERIODS = ["1", "2", "3", "4", "N", "5", "6", "7", "8", "9", "A", "B", "C"
 const IS_N = i => PERIODS[i] === "N";
 const ROW_H = i => (IS_N(i) ? 28 : 78);
 const PALETTE = ["#e0b4a8", "#a9aed0", "#bba0c4", "#b9c9a6", "#cbbd9c", "#a4c0c8", "#c4b5a0", "#c9a0ac", "#9fb4c8", "#a8caa4", "#d6c18a", "#9ed0c4"];
-const LS = { local: "tt.local.courses", sem: "tt.sem", sems: "tt.sems", opt: "tt.opt" };
+const LS = { local: "tt.local.courses", sem: "tt.sem2", sems: "tt.sems", opt: "tt.opt" };
 
 // ---------- 狀態 ----------
 const $ = s => document.querySelector(s);
@@ -17,8 +17,8 @@ const state = {
   user: null,
 };
 function defaultSemester() {
-  const d = new Date(), y = d.getFullYear() - 1911, m = d.getMonth() + 1;
-  return m >= 8 ? `${y}-1` : m === 1 ? `${y - 1}-1` : `${y - 1}-2`;
+  const d = new Date();
+  return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
 // ---------- 儲存層 (Supabase / localStorage) ----------
@@ -78,7 +78,7 @@ function persistMeta() {
 function visibleRows() {
   return PERIODS.map((p, i) => i).filter(i => state.opt.night || !"ABCD".includes(PERIODS[i]));
 }
-function renderAll() { renderSemesters(); renderGrid(); renderSummary(); }
+function renderAll() { renderSemesters(); renderGrid(); }
 
 function renderSemesters() {
   $("#semSelect").innerHTML = state.semesters
@@ -157,14 +157,6 @@ function renderGrid() {
   });
 }
 
-function renderSummary() {
-  const cs = state.courses.filter(c => c.semester === state.semester);
-  const credits = cs.reduce((a, c) => a + (+c.credits || 0), 0);
-  let hours = 0;
-  cs.forEach(c => (c.slots || []).forEach(s => { for (let i = s.start; i <= s.end; i++) if (!IS_N(i)) hours++; }));
-  $("#summary").textContent = `${credits.toFixed(1)} 學分 · ${hours} 小時`;
-}
-
 // ---------- 課程編輯 ----------
 let editing = null, editColor = PALETTE[0];
 const dlg = $("#courseDlg"), form = $("#courseForm");
@@ -192,7 +184,6 @@ function openCourse(c, preset) {
   $("#dlgTitle").textContent = c ? "編輯課程" : "新增課程";
   form.name.value = c?.name || "";
   form.room.value = c?.room || "";
-  form.credits.value = c?.credits ?? 0;
   editColor = c?.color || PALETTE[state.courses.length % PALETTE.length];
   renderSwatches();
   $("#slots").innerHTML = "";
@@ -222,7 +213,7 @@ form.onsubmit = async e => {
     semester: editing?.semester || state.semester,
     name: form.name.value.trim(),
     room: form.room.value.trim(),
-    credits: +form.credits.value || 0,
+    credits: editing?.credits ?? 0,
     color: editColor,
     slots,
   };
@@ -248,7 +239,7 @@ function findClash(c) {
 // ---------- 學期 / 設定 ----------
 $("#semSelect").onchange = e => { state.semester = e.target.value; persistMeta(); renderAll(); };
 $("#btnSem").onclick = () => {
-  const s = prompt("新增學期(例如 115-2)", "");
+  const s = prompt("新增時間表(例如 2026/11)", "");
   if (!s || !s.trim()) return;
   state.semester = s.trim();
   if (!state.semesters.includes(state.semester)) state.semesters.unshift(state.semester);
