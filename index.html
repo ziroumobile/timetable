@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="課表">
-<link rel="stylesheet" href="style.css?v=11">
+<link rel="stylesheet" href="style.css?v=12">
 </head>
 <body>
 <header>
@@ -67,6 +67,19 @@
   </div>
 </dialog>
 
+<!-- 日期簿 dialog -->
+<dialog id="sheetDlg">
+  <div class="info">
+    <h2 id="sheetName"></h2>
+    <p class="muted" id="sheetCount"></p>
+    <div class="sheetBtns">
+      <button type="button" id="btnSheetCopy">複製日期簿</button>
+      <button type="button" id="btnSheetClear" class="danger">清除全部課程</button>
+    </div>
+    <div class="actions"><div class="spacer"></div><button type="button" id="btnSheetClose" class="primary">關閉</button></div>
+  </div>
+</dialog>
+
 <!-- 設定 dialog -->
 <dialog id="setDlg">
   <form method="dialog">
@@ -109,7 +122,7 @@
 <div id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="config.js?v=11"></script>
-<script src="app.js?v=11"></script>
+<script src="config.js?v=12"></script>
+<script src="app.js?v=12"></script>
 </body>
 </html>

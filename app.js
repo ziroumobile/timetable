@@ -66,6 +66,25 @@ const store = {
     if (i >= 0) a[i] = c; else a.push(c);
     localSave(a);
   },
+  async upsertMany(list) {
+    if (!list.length) return;
+    if (state.user) {
+      const { error } = await sb.from("courses").upsert(list);
+      if (error) throw error;
+      return;
+    }
+    const a = localAll();
+    list.forEach(c => { const i = a.findIndex(x => x.id === c.id); if (i >= 0) a[i] = c; else a.push(c); });
+    localSave(a);
+  },
+  async removeSemester(sem) {
+    if (state.user) {
+      const { error } = await sb.from("courses").delete().eq("semester", sem);
+      if (error) throw error;
+      return;
+    }
+    localSave(localAll().filter(x => x.semester !== sem));
+  },
   async remove(id) {
     if (state.user) {
       const { error } = await sb.from("courses").delete().eq("id", id);
@@ -144,7 +163,7 @@ function renderSemesters() {
   const box = $("#semTabs");
   box.innerHTML = [...state.semesters].sort()
     .map(s => `<button type="button" role="tab" class="tab ${s === state.semester ? "on" : ""}" data-s="${esc(s)}">${esc(s)}</button>`).join("");
-  box.querySelectorAll(".tab").forEach(t => { t.onclick = () => { state.semester = t.dataset.s; persistMeta(); renderAll(); }; });
+  box.querySelectorAll(".tab").forEach(t => bindPress(t, () => openSheet(t.dataset.s), () => { state.semester = t.dataset.s; persistMeta(); renderAll(); }));
   box.querySelector(".tab.on")?.scrollIntoView({ inline: "center", block: "nearest" });
 }
 
@@ -204,7 +223,7 @@ function renderGrid() {
     el.style.cssText = `top:${it.top + 2}px;height:${h}px;left:calc(${(it.lane / it.lanes) * 100}% + 2px);width:calc(${100 / it.lanes}% - 4px);background:${color};border-color:${shade(color, -0.35)}`;
     const room = it.s.room || it.c.room;
     el.innerHTML = `<b>${esc(it.c.name)}</b>${room ? `<small>${esc(room)}</small>` : ""}`;
-    bindPress(el, it.c);
+    bindPress(el, () => showInfo(it.c), () => openCourse(it.c));
     cols[it.s.day].appendChild(el);
   }
   // 點空白新增
@@ -216,18 +235,58 @@ function renderGrid() {
   });
 }
 
+// ---------- 日期簿(分頁)管理:複製 / 清除 ----------
+let sheetSem = null;
+function openSheet(sem) {
+  sheetSem = sem;
+  const n = state.courses.filter(c => c.semester === sem).length;
+  $("#sheetName").textContent = sem;
+  $("#sheetCount").textContent = n ? `共 ${n} 門課` : "目前沒有課程";
+  $("#btnSheetClear").disabled = !n;
+  $("#btnSheetCopy").disabled = !n;
+  $("#sheetDlg").showModal();
+}
+$("#btnSheetClose").onclick = () => $("#sheetDlg").close();
+$("#sheetDlg").onclick = e => { if (e.target === e.currentTarget) e.currentTarget.close(); };
+$("#btnSheetCopy").onclick = async () => {
+  const src = sheetSem;
+  const name = (prompt(`把「${src}」複製成新的日期簿,名稱:`, src + " 複本") || "").trim();
+  if (!name) return;
+  if (state.courses.some(c => c.semester === name)) return toast("已經有同名的日期簿");
+  const copies = state.courses.filter(c => c.semester === src)
+    .map(c => ({ ...c, id: uid(), semester: name, slots: c.slots.map(s => ({ ...s })) }));
+  $("#sheetDlg").close();
+  state.courses.push(...copies);
+  state.semester = name;
+  if (!state.semesters.includes(name)) state.semesters.unshift(name);
+  persistMeta(); renderAll(); toast(`已複製到「${name}」`);
+  try { await store.upsertMany(copies); }
+  catch (err) { toast("複製失敗:" + err.message); await reload(); }
+};
+$("#btnSheetClear").onclick = async () => {
+  const sem = sheetSem;
+  const n = state.courses.filter(c => c.semester === sem).length;
+  if (!confirm(`清除「${sem}」的全部 ${n} 門課?這個動作無法復原。`)) return;
+  $("#sheetDlg").close();
+  state.courses = state.courses.filter(c => c.semester !== sem);
+  if (sem !== state.semester) state.semesters = state.semesters.filter(s => s !== sem);
+  persistMeta(); renderAll(); toast(`已清除「${sem}」`);
+  try { await store.removeSemester(sem); }
+  catch (err) { toast("清除失敗:" + err.message); await reload(); }
+};
+
 // ---------- 長按看詳情 ----------
-function bindPress(el, c) {
+function bindPress(el, onLong, onTap) {
   let timer = null, fired = false, x0 = 0, y0 = 0;
   const cancel = () => { clearTimeout(timer); timer = null; };
   el.onpointerdown = e => {
     fired = false; x0 = e.clientX; y0 = e.clientY;
-    timer = setTimeout(() => { fired = true; timer = null; navigator.vibrate?.(15); showInfo(c); }, 450);
+    timer = setTimeout(() => { fired = true; timer = null; navigator.vibrate?.(15); onLong(); }, 450);
   };
   el.onpointermove = e => { if (timer && Math.hypot(e.clientX - x0, e.clientY - y0) > 8) cancel(); };
   el.onpointerup = el.onpointerleave = el.onpointercancel = cancel;
   el.oncontextmenu = e => e.preventDefault();
-  el.onclick = e => { e.stopPropagation(); if (fired) { fired = false; return; } openCourse(c); };
+  el.onclick = e => { e.stopPropagation(); if (fired) { fired = false; return; } onTap(); };
 }
 function showInfo(c) {
   $("#infoName").textContent = c.name;

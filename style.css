@@ -92,3 +92,7 @@ label.check input{width:auto;margin:0}
 .tabs::-webkit-scrollbar{display:none}
 .tab{flex:none;background:transparent;border:0;border-bottom:3px solid transparent;border-radius:6px 6px 0 0;color:var(--muted);padding:6px 14px;font-size:15px;font-weight:600}
 .tab.on{color:var(--accent);background:rgba(158,197,255,.12);border-bottom-color:var(--accent)}
+.sheetBtns{display:grid;gap:8px;margin:12px 0}
+.sheetBtns button{padding:12px;font-size:16px}.sheetBtns button:disabled{opacity:.4}
+.tab{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.sheetBtns .danger{color:#ff8c8c}
