@@ -19,7 +19,7 @@ const state = {
   courses: [],
   semester: localStorage.getItem(LS.sem) || defaultSemester(),
   semesters: JSON.parse(localStorage.getItem(LS.sems) || "[]"),
-  opt: Object.assign({ weekend: false, night: false, period: false, keys: "7, 12, 18" }, JSON.parse(localStorage.getItem(LS.opt) || "{}")),
+  opt: Object.assign({ weekend: true, off: [], night: false, period: false, keys: "7, 12, 18" }, JSON.parse(localStorage.getItem(LS.opt) || "{}")),
   user: null,
 };
 function defaultSemester() {
@@ -145,10 +145,21 @@ function renderSemesters() {
     .map(s => `<option value="${esc(s)}" ${s === state.semester ? "selected" : ""}>${esc(s)}</option>`).join("");
 }
 
+// 點星期標題:整天變半透明(補假/停課),再點一次恢復
+function toggleOff(d) {
+  const s = new Set(state.opt.off || []);
+  if (s.has(d)) s.delete(d); else s.add(d);
+  state.opt.off = [...s];
+  persistMeta(); renderGrid();
+  toast(s.has(d) ? `週${DAYS[d]}已標示放假` : `週${DAYS[d]}已恢復`);
+}
+
 function renderGrid() {
   const ax = buildAxis();
   document.documentElement.style.setProperty("--n", ax.nDays);
-  $("#days").innerHTML = "<div></div>" + DAYS.slice(0, ax.nDays).map(d => `<div>${d}</div>`).join("");
+  const off = new Set(state.opt.off || []);
+  $("#days").innerHTML = "<div></div>" + DAYS.slice(0, ax.nDays).map((d, i) => `<div class="dh ${off.has(i) ? "off" : ""}" data-d="${i}">${d}</div>`).join("");
+  $("#days").querySelectorAll(".dh").forEach(el => { el.onclick = () => toggleOff(+el.dataset.d); });
 
   let html = "";
   ax.lines.forEach(l => {
@@ -186,7 +197,7 @@ function renderGrid() {
     const h = it.bottom - it.top - 4;
     const color = it.c.color || PALETTE[0];
     const el = document.createElement("div");
-    el.className = "course" + (it.lanes > 1 ? " conflict" : "");
+    el.className = "course" + (it.lanes > 1 ? " conflict" : "") + (off.has(it.s.day) ? " off" : "");
     el.style.cssText = `top:${it.top + 2}px;height:${h}px;left:calc(${(it.lane / it.lanes) * 100}% + 2px);width:calc(${100 / it.lanes}% - 4px);background:${color};border-color:${shade(color, -0.35)}`;
     const room = it.s.room || it.c.room;
     el.innerHTML = `<b>${esc(it.c.name)}</b>${room ? `<small>${esc(room)}</small>` : ""}`;

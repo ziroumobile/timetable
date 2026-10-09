@@ -84,3 +84,6 @@ label.check input{width:auto;margin:0}
 [hidden]{display:none!important}
 .course{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;touch-action:manipulation}
 .info p{margin:0;font-size:16px}.info ul{margin:0;padding:0;list-style:none;display:grid;gap:4px;font-size:16px}
+#days .dh{cursor:pointer;-webkit-user-select:none;user-select:none}
+#days .dh.off{opacity:.4;text-decoration:line-through}
+.course.off{opacity:.3;filter:saturate(.5)}
