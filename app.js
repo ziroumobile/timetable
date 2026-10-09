@@ -19,7 +19,7 @@ const state = {
   courses: [],
   semester: localStorage.getItem(LS.sem) || defaultSemester(),
   semesters: JSON.parse(localStorage.getItem(LS.sems) || "[]"),
-  opt: Object.assign({ weekend: true, sunFirst: false, off: [], locked: [], ghost: [], night: false, period: false, keys: "7, 12, 18" }, JSON.parse(localStorage.getItem(LS.opt) || "{}")),
+  opt: Object.assign({ weekend: true, sunFirst: false, rest: false, off: [], locked: [], ghost: [], night: false, period: false, keys: "7, 12, 18" }, JSON.parse(localStorage.getItem(LS.opt) || "{}")),
   user: null,
   view: "week",            // week = 每週課表(預設), month = 行事曆(從左上選單切換)
   anchor: new Date(),      // 目前選的日期(決定哪一週)
@@ -123,6 +123,8 @@ function persistMeta() {
 // ---------- 時間工具 ----------
 const pad = n => String(n).padStart(2, "0");
 const fmt = m => `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
+// 時長顯示:不到 1 小時只顯示分鐘
+const fmtDur = m => m < 60 ? `${m} 分鐘` : (m % 60 ? `${Math.floor(m / 60)} 小時 ${m % 60} 分鐘` : `${m / 60} 小時`);
 const parseT = v => { const [h, m] = v.split(":").map(Number); return h * 60 + (m || 0); };
 const periodAtOrAfter = m => { const i = PERIODS.findIndex(p => p.e > m); return i < 0 ? PERIODS.length - 1 : i; };
 const periodAtOrBefore = m => { let r = 0; PERIODS.forEach((p, i) => { if (p.s < m) r = i; }); return r; };
@@ -281,6 +283,23 @@ function renderGrid() {
     }
     flush();
   }
+  // 沒排行程的空檔自動標示「休息」
+  if (state.opt.rest) {
+    for (const d of ax.order) {
+      const iv = items.filter(x => x.s.day === d).map(x => [x.top, x.bottom]).sort((p, q) => p[0] - q[0]);
+      let pos = 0; const gaps = [];
+      for (const [t, b] of iv) { if (t > pos) gaps.push([pos, t]); pos = Math.max(pos, b); }
+      if (pos < ax.total) gaps.push([pos, ax.total]);
+      for (const [t, b] of gaps) {
+        if (b - t < 12) continue;
+        const r = document.createElement("div");
+        r.className = "rest";
+        r.style.cssText = `top:${t + 2}px;height:${b - t - 4}px`;
+        if (b - t >= 26) r.textContent = "休息";
+        colOf[d].appendChild(r);
+      }
+    }
+  }
   for (const it of items) {
     const h = it.bottom - it.top - 4;
     const color = it.c.color || PALETTE[0];
@@ -375,6 +394,7 @@ function showInfo(c, slot) {
   $("#infoNote").textContent = c.note || "";
   $("#infoTimes").innerHTML = c.slots.slice().sort((p, q) => p.day - q.day || p.from - q.from)
     .map(s => `<li>週${DAYS[s.day]} ${fmt(s.from)}–${fmt(s.to)}${s.room && s.room !== c.room ? ` <span class="muted">· ${esc(s.room)}</span>` : ""}</li>`).join("");
+  $("#infoTotal").textContent = fmtDur(c.slots.reduce((t, s) => t + Math.max(0, s.to - s.from), 0));
   $("#btnInfoEdit").onclick = () => { $("#infoDlg").close(); openCourse(c); };
   const gb = $("#btnInfoGhost");
   gb.hidden = !slot;
@@ -535,6 +555,7 @@ $("#btnSem").onclick = () => {
 $("#btnSettings").onclick = () => {
   $("#optWeekend").checked = state.opt.weekend;
   $("#optSunFirst").checked = state.opt.sunFirst;
+  $("#btnRest").textContent = `休息時段:${state.opt.rest ? "開" : "關"}`;
   $("#optNight").checked = state.opt.night;
   $("#optPeriod").checked = state.opt.period;
   $("#optKeys").value = state.opt.keys;
@@ -542,6 +563,7 @@ $("#btnSettings").onclick = () => {
   renderInstall();
   $("#setDlg").showModal();
 };
+$("#btnRest").onclick = () => { state.opt.rest = !state.opt.rest; $("#btnRest").textContent = `休息時段:${state.opt.rest ? "開" : "關"}`; };
 $("#setDlg").onclose = () => {
   state.opt.weekend = $("#optWeekend").checked;
   state.opt.sunFirst = $("#optSunFirst").checked;

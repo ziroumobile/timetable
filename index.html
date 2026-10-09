@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="行程">
-<link rel="stylesheet" href="style.css?v=18">
+<link rel="stylesheet" href="style.css?v=19">
 </head>
 <body>
 <header>
@@ -85,6 +85,7 @@
     <h3>地點</h3><p id="infoRoom"></p>
     <div id="infoNoteBox"><h3>備註</h3><p id="infoNote" class="noteText"></p></div>
     <h3>時間</h3><ul id="infoTimes"></ul>
+    <h3>總共</h3><p id="infoTotal"></p>
     <div class="actions"><div class="spacer"></div><button type="button" id="btnInfoGhost">隱形這一節</button><button type="button" id="btnInfoEdit">編輯</button><button type="button" id="btnInfoClose" class="primary">關閉</button></div>
   </div>
 </dialog>
@@ -127,6 +128,8 @@
     <label class="check"><input type="checkbox" id="optWeekend"> 顯示週六、週日</label>
     <label class="check"><input type="checkbox" id="optSunFirst"> 每週從週日開始(日到六)</label>
     <label>標記的重點時間(小時,逗號分隔)<input id="optKeys" placeholder="7, 12, 18"></label>
+    <button type="button" id="btnRest" class="chip">休息時段:關</button>
+    <p class="muted">開啟後,沒排行程的空檔會自動標示「休息」。</p>
     <h3>節次</h3>
     <label class="check"><input type="checkbox" id="optPeriod"> 用「第幾節課」顯示與輸入</label>
     <label class="check"><input type="checkbox" id="optNight"> 節次模式顯示 A–D 節(晚間)</label>
@@ -164,7 +167,7 @@
 <div id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="config.js?v=18"></script>
-<script src="app.js?v=18"></script>
+<script src="config.js?v=19"></script>
+<script src="app.js?v=19"></script>
 </body>
 </html>
