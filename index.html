@@ -5,14 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#11141b">
 <title>課表</title>
-<link rel="stylesheet" href="style.css?v=3">
+<link rel="stylesheet" href="style.css?v=4">
 </head>
 <body>
 <header>
   <h1>課表</h1>
   <div class="spacer"></div>
   <button id="btnSettings" class="icon" title="設定">⚙</button>
-  <button id="btnAuth" class="chip">登入</button>
+  <button id="btnAuth" class="chip" hidden>登入</button>
 </header>
 
 <main>
@@ -52,9 +52,16 @@
 <!-- 設定 dialog -->
 <dialog id="setDlg">
   <form method="dialog">
-    <h2>顯示設定</h2>
+    <h2>設定</h2>
+    <h3>顯示</h3>
     <label class="check"><input type="checkbox" id="optWeekend"> 顯示週六、週日</label>
-    <label class="check"><input type="checkbox" id="optNight"> 顯示 A–D 節(晚間)</label>
+    <label>標記的重點時間(小時,逗號分隔)<input id="optKeys" placeholder="7, 12, 18"></label>
+    <h3>節次</h3>
+    <label class="check"><input type="checkbox" id="optPeriod"> 用「第幾節課」顯示與輸入</label>
+    <label class="check"><input type="checkbox" id="optNight"> 節次模式顯示 A–D 節(晚間)</label>
+    <h3>帳號</h3>
+    <p class="muted" id="acctInfo"></p>
+    <button type="button" id="btnAcct" class="chip">登入</button>
     <div class="actions"><div class="spacer"></div><button class="primary">完成</button></div>
   </form>
 </dialog>
@@ -79,7 +86,7 @@
 <div id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="config.js?v=3"></script>
-<script src="app.js?v=3"></script>
+<script src="config.js?v=4"></script>
+<script src="app.js?v=4"></script>
 </body>
 </html>

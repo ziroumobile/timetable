@@ -1,9 +1,15 @@
 "use strict";
 // ---------- 常數 ----------
 const DAYS = ["一", "二", "三", "四", "五", "六", "日"];
-const PERIODS = ["1", "2", "3", "4", "N", "5", "6", "7", "8", "9", "A", "B", "C", "D"]; // N = 午休
-const IS_N = i => PERIODS[i] === "N";
-const ROW_H = i => (IS_N(i) ? 28 : 78);
+// 節次對應的時間(分鐘)。資料一律以「分鐘」儲存,節次只是顯示/輸入方式
+const PERIODS = [
+  { l: "1", s: 490, e: 540 }, { l: "2", s: 550, e: 600 }, { l: "3", s: 610, e: 660 }, { l: "4", s: 670, e: 720 },
+  { l: "N", s: 730, e: 780 },
+  { l: "5", s: 790, e: 840 }, { l: "6", s: 850, e: 900 }, { l: "7", s: 910, e: 960 }, { l: "8", s: 970, e: 1020 }, { l: "9", s: 1030, e: 1080 },
+  { l: "A", s: 1095, e: 1145 }, { l: "B", s: 1150, e: 1200 }, { l: "C", s: 1210, e: 1260 }, { l: "D", s: 1265, e: 1315 },
+];
+const PERIOD_H = p => (p.l === "N" ? 28 : 78);
+const HOUR_PX = 56;
 const PALETTE = ["#e0b4a8", "#a9aed0", "#bba0c4", "#b9c9a6", "#cbbd9c", "#a4c0c8", "#c4b5a0", "#c9a0ac", "#9fb4c8", "#a8caa4", "#d6c18a", "#9ed0c4"];
 const LS = { local: "tt.local.courses", sem: "tt.sem2", sems: "tt.sems", opt: "tt.opt" };
 
@@ -13,12 +19,23 @@ const state = {
   courses: [],
   semester: localStorage.getItem(LS.sem) || defaultSemester(),
   semesters: JSON.parse(localStorage.getItem(LS.sems) || "[]"),
-  opt: Object.assign({ weekend: false, night: false }, JSON.parse(localStorage.getItem(LS.opt) || "{}")),
+  opt: Object.assign({ weekend: false, night: false, period: false, keys: "7, 12, 18" }, JSON.parse(localStorage.getItem(LS.opt) || "{}")),
   user: null,
 };
 function defaultSemester() {
   const d = new Date();
   return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+const keyHours = () => new Set(String(state.opt.keys).split(/[,\s、，]+/).filter(Boolean).map(Number).filter(n => Number.isFinite(n) && n >= 0 && n <= 24));
+
+// 舊資料(以節次 index 存)轉成分鐘
+function normalize(c) {
+  c.slots = (c.slots || []).map(s => {
+    if (s.from != null && s.to != null) return s;
+    const a = PERIODS[s.start], b = PERIODS[s.end];
+    return a && b ? { day: s.day, from: a.s, to: b.e, room: s.room } : null;
+  }).filter(Boolean);
+  return c;
 }
 
 // ---------- 儲存層 (Supabase / localStorage) ----------
@@ -61,7 +78,7 @@ const store = {
 
 // ---------- 載入 ----------
 async function reload() {
-  try { state.courses = await store.list(); }
+  try { state.courses = (await store.list()).map(normalize); }
   catch (e) { toast("讀取失敗:" + e.message); state.courses = []; }
   const set = new Set([...state.semesters, state.semester, ...state.courses.map(c => c.semester)]);
   const used = new Set(state.courses.map(c => c.semester));
@@ -75,11 +92,53 @@ function persistMeta() {
   localStorage.setItem(LS.opt, JSON.stringify(state.opt));
 }
 
-// ---------- 渲染 ----------
-function visibleRows() {
-  return PERIODS.map((p, i) => i).filter(i => state.opt.night || !"ABCD".includes(PERIODS[i]));
+// ---------- 時間工具 ----------
+const pad = n => String(n).padStart(2, "0");
+const fmt = m => `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
+const parseT = v => { const [h, m] = v.split(":").map(Number); return h * 60 + (m || 0); };
+const periodAtOrAfter = m => { const i = PERIODS.findIndex(p => p.e > m); return i < 0 ? PERIODS.length - 1 : i; };
+const periodAtOrBefore = m => { let r = 0; PERIODS.forEach((p, i) => { if (p.s < m) r = i; }); return r; };
+
+// ---------- 軸線(時間模式 / 節次模式) ----------
+function buildAxis() {
+  const nDays = state.opt.weekend ? 7 : 5;
+  const items = [];
+  state.courses.filter(c => c.semester === state.semester)
+    .forEach(c => c.slots.forEach(s => { if (s.day < nDays) items.push({ c, s }); }));
+
+  if (state.opt.period) {
+    const rows = PERIODS.filter(p => state.opt.night || !"ABCD".includes(p.l));
+    const tops = []; let y = 0;
+    rows.forEach(p => { tops.push(y); y += PERIOD_H(p); });
+    const lines = rows.map((p, i) => ({ y: tops[i], h: PERIOD_H(p), label: p.l, center: true }));
+    const yRange = s => {
+      const r0 = rows.findIndex(p => p.e > s.from);
+      let r1 = -1; rows.forEach((p, i) => { if (p.s < s.to) r1 = i; });
+      return r0 < 0 || r1 < r0 ? null : [tops[r0], tops[r1] + PERIOD_H(rows[r1])];
+    };
+    const toTime = yy => {
+      let r = tops.findIndex((t, k) => yy >= t && yy < t + PERIOD_H(rows[k]));
+      if (r < 0) r = 0;
+      if (rows[r].l === "N") r = Math.min(r + 1, rows.length - 1);
+      return [rows[r].s, rows[r].e];
+    };
+    return { nDays, items, lines, total: y, yRange, toTime };
+  }
+
+  let lo = 7 * 60, hi = 22 * 60;
+  items.forEach(({ s }) => { lo = Math.min(lo, Math.floor(s.from / 60) * 60); hi = Math.max(hi, Math.ceil(s.to / 60) * 60); });
+  const px = HOUR_PX / 60, keys = keyHours();
+  const lines = [];
+  for (let h = lo / 60; h <= hi / 60; h++) lines.push({ y: (h * 60 - lo) * px, label: String(h), key: keys.has(h) });
+  return {
+    nDays, items, lines, total: (hi - lo) * px,
+    yRange: s => [(s.from - lo) * px, (s.to - lo) * px],
+    toTime: yy => { const m = lo + Math.floor(yy / px / 60) * 60; return [m, m + 60]; },
+  };
 }
-function renderAll() { renderSemesters(); renderGrid(); }
+
+// ---------- 渲染 ----------
+function renderAll() { renderSemesters(); renderGrid(); renderAccount(); }
 
 function renderSemesters() {
   $("#semSelect").innerHTML = state.semesters
@@ -87,73 +146,59 @@ function renderSemesters() {
 }
 
 function renderGrid() {
-  const nDays = state.opt.weekend ? 7 : 5;
-  const rows = visibleRows();
-  const tops = []; let y = 0;
-  rows.forEach(i => { tops.push(y); y += ROW_H(i); });
-  const total = y;
+  const ax = buildAxis();
+  document.documentElement.style.setProperty("--n", ax.nDays);
+  $("#days").innerHTML = "<div></div>" + DAYS.slice(0, ax.nDays).map(d => `<div>${d}</div>`).join("");
 
-  document.documentElement.style.setProperty("--n", nDays);
-  $("#days").innerHTML = "<div></div>" + DAYS.slice(0, nDays).map(d => `<div>${d}</div>`).join("");
-
-  // 左側節次標籤與橫線(絕對定位),後面接 nDays 個欄位
   let html = "";
-  rows.forEach((i, r) => {
-    html += `<div class="plabel" style="top:${tops[r]}px;height:${ROW_H(i)}px">${PERIODS[i]}</div>`;
-    html += `<div class="hline" style="top:${tops[r]}px"></div>`;
+  ax.lines.forEach(l => {
+    html += `<div class="hline ${l.key ? "key" : ""}" style="top:${l.y}px"></div>`;
+    html += l.center
+      ? `<div class="plabel" style="top:${l.y}px;height:${l.h}px">${l.label}</div>`
+      : `<div class="tlabel ${l.key ? "key" : ""}" style="top:${l.y}px">${l.label}</div>`;
   });
-  html += `<div class="hline" style="top:${total - 1}px"></div>`;
-  html += `<div style="height:${total}px"></div>`; // 佔 label 欄
-  for (let d = 0; d < nDays; d++) html += `<div class="col" data-day="${d}" style="height:${total}px"></div>`;
+  if (ax.lines[0]?.center) html += `<div class="hline" style="top:${ax.total - 1}px"></div>`;
+  html += `<div style="height:${ax.total}px"></div>`; // 佔 label 欄
+  for (let d = 0; d < ax.nDays; d++) html += `<div class="col" data-day="${d}" style="height:${ax.total}px"></div>`;
   const body = $("#body");
   body.innerHTML = html;
   const cols = [...body.querySelectorAll(".col")];
 
-  // 展開所有時段
-  const items = [];
-  state.courses.filter(c => c.semester === state.semester).forEach(c => {
-    (c.slots || []).forEach(s => {
-      if (s.day >= nDays) return;
-      const r0 = rows.findIndex(i => i >= s.start);
-      let r1 = -1; rows.forEach((i, r) => { if (i <= s.end) r1 = r; });
-      if (r0 < 0 || r1 < r0) return;
-      items.push({ c, s, r0, r1, lane: 0, lanes: 1 });
-    });
-  });
-  // 同日衝堂:並排
-  for (let d = 0; d < nDays; d++) {
-    const list = items.filter(x => x.s.day === d).sort((a, b) => a.r0 - b.r0 || a.r1 - b.r1);
-    let cluster = [], end = -1;
+  const items = ax.items.map(({ c, s }) => {
+    const r = ax.yRange(s);
+    return r && { c, s, top: r[0], bottom: r[1], lane: 0, lanes: 1 };
+  }).filter(Boolean);
+
+  // 同日重疊:並排
+  for (let d = 0; d < ax.nDays; d++) {
+    const list = items.filter(x => x.s.day === d).sort((a, b) => a.top - b.top || a.bottom - b.bottom);
+    let cluster = [], end = -Infinity;
     const flush = () => { const m = Math.max(1, ...cluster.map(x => x.lane + 1)); cluster.forEach(x => (x.lanes = m)); cluster = []; };
     for (const it of list) {
-      if (it.r0 > end) { flush(); end = -1; }
-      const used = cluster.filter(x => x.r1 >= it.r0).map(x => x.lane);
+      if (it.top >= end) { flush(); end = -Infinity; }
+      const used = cluster.filter(x => x.bottom > it.top).map(x => x.lane);
       let lane = 0; while (used.includes(lane)) lane++;
-      it.lane = lane; cluster.push(it); end = Math.max(end, it.r1);
+      it.lane = lane; cluster.push(it); end = Math.max(end, it.bottom);
     }
     flush();
   }
   for (const it of items) {
-    const top = tops[it.r0] + 2;
-    const h = tops[it.r1] + ROW_H(rows[it.r1]) - tops[it.r0] - 4;
+    const h = it.bottom - it.top - 4;
     const color = it.c.color || PALETTE[0];
     const el = document.createElement("div");
     el.className = "course" + (it.lanes > 1 ? " conflict" : "");
-    el.style.cssText = `top:${top}px;height:${h}px;left:calc(${(it.lane / it.lanes) * 100}% + 2px);width:calc(${100 / it.lanes}% - 4px);background:${color};border-color:${shade(color, -0.35)}`;
+    el.style.cssText = `top:${it.top + 2}px;height:${h}px;left:calc(${(it.lane / it.lanes) * 100}% + 2px);width:calc(${100 / it.lanes}% - 4px);background:${color};border-color:${shade(color, -0.35)}`;
     const room = it.s.room || it.c.room;
-    el.innerHTML = `<b>${esc(it.c.name)}</b>${room ? `<small>${esc(room)}</small>` : ""}`;
+    el.innerHTML = `<b>${esc(it.c.name)}</b>${room ? `<small>${esc(room)}</small>` : ""}` +
+      (!state.opt.period && h > 64 ? `<small class="t">${fmt(it.s.from)}–${fmt(it.s.to)}</small>` : "");
     el.onclick = e => { e.stopPropagation(); openCourse(it.c); };
     cols[it.s.day].appendChild(el);
   }
   // 點空白新增
   cols.forEach(col => {
     col.onclick = e => {
-      const yy = e.clientY - col.getBoundingClientRect().top;
-      let r = tops.findIndex((t, k) => yy >= t && yy < t + ROW_H(rows[k]));
-      if (r < 0) r = 0;
-      let p = rows[r];
-      if (IS_N(p)) p = rows[Math.min(r + 1, rows.length - 1)];
-      openCourse(null, { day: +col.dataset.day, start: p, end: p });
+      const [from, to] = ax.toTime(e.clientY - col.getBoundingClientRect().top);
+      openCourse(null, { day: +col.dataset.day, from, to });
     };
   });
 }
@@ -162,22 +207,37 @@ function renderGrid() {
 let editing = null, editColor = PALETTE[0];
 const dlg = $("#courseDlg"), form = $("#courseForm");
 
-const periodOpts = sel => PERIODS.map((p, i) => `<option value="${i}" ${i === sel ? "selected" : ""}>${p === "N" ? "N 午休" : "第 " + p + " 節"}</option>`).join("");
+const periodOpts = sel => PERIODS.map((p, i) => `<option value="${i}" ${i === sel ? "selected" : ""}>${p.l === "N" ? "N 午休" : "第 " + p.l + " 節"}</option>`).join("");
 const dayOpts = sel => DAYS.map((d, i) => `<option value="${i}" ${i === sel ? "selected" : ""}>週${d}</option>`).join("");
 
 function addSlotRow(s) {
   const div = document.createElement("div");
   div.className = "slot";
-  div.innerHTML = `<select class="d">${dayOpts(s.day)}</select>
-    <select class="s">${periodOpts(s.start)}</select>
-    <select class="e">${periodOpts(s.end)}</select>
-    <button type="button" title="移除">✕</button>
-    <input class="room" placeholder="此時段教室(選填,預設同上)" value="${esc(s.room || "")}">`;
+  const roomInput = `<input class="room" placeholder="此時段教室(選填,預設同上)" value="${esc(s.room || "")}">`;
+  if (state.opt.period) {
+    div.innerHTML = `<select class="d">${dayOpts(s.day)}</select>
+      <select class="s">${periodOpts(periodAtOrAfter(s.from))}</select>
+      <select class="e">${periodOpts(periodAtOrBefore(s.to))}</select>
+      <button type="button" title="移除">✕</button>${roomInput}`;
+    const sSel = div.querySelector(".s"), eSel = div.querySelector(".e");
+    sSel.onchange = () => { if (+eSel.value < +sSel.value) eSel.value = sSel.value; };
+    eSel.onchange = () => { if (+eSel.value < +sSel.value) sSel.value = eSel.value; };
+  } else {
+    div.innerHTML = `<select class="d">${dayOpts(s.day)}</select>
+      <input class="from" type="time" step="300" value="${fmt(s.from)}" required>
+      <input class="to" type="time" step="300" value="${fmt(s.to)}" required>
+      <button type="button" title="移除">✕</button>${roomInput}`;
+  }
   div.querySelector("button").onclick = () => div.remove();
-  const sSel = div.querySelector(".s"), eSel = div.querySelector(".e");
-  sSel.onchange = () => { if (+eSel.value < +sSel.value) eSel.value = sSel.value; };
-  eSel.onchange = () => { if (+eSel.value < +sSel.value) sSel.value = eSel.value; };
   $("#slots").appendChild(div);
+}
+function readSlot(r) {
+  const day = +r.querySelector(".d").value;
+  const room = r.querySelector(".room").value.trim() || undefined;
+  if (state.opt.period) {
+    return { day, from: PERIODS[+r.querySelector(".s").value].s, to: PERIODS[+r.querySelector(".e").value].e, room };
+  }
+  return { day, from: parseT(r.querySelector(".from").value), to: parseT(r.querySelector(".to").value), room };
 }
 
 function openCourse(c, preset) {
@@ -188,7 +248,7 @@ function openCourse(c, preset) {
   editColor = c?.color || PALETTE[state.courses.length % PALETTE.length];
   renderSwatches();
   $("#slots").innerHTML = "";
-  (c?.slots?.length ? c.slots : [preset || { day: 0, start: 0, end: 1 }]).forEach(addSlotRow);
+  (c?.slots?.length ? c.slots : [preset || { day: 0, from: 480, to: 540 }]).forEach(addSlotRow);
   $("#btnDelete").style.display = c ? "" : "none";
   dlg.showModal();
 }
@@ -196,19 +256,15 @@ function renderSwatches() {
   $("#swatches").innerHTML = PALETTE.map(p => `<div class="sw ${p === editColor ? "on" : ""}" data-c="${p}" style="background:${p}"></div>`).join("");
   document.querySelectorAll(".sw").forEach(el => { el.onclick = () => { editColor = el.dataset.c; renderSwatches(); }; });
 }
-$("#addSlot").onclick = () => addSlotRow({ day: 0, start: 0, end: 1 });
+$("#addSlot").onclick = () => addSlotRow({ day: 0, from: 480, to: 540 });
 $("#btnAdd").onclick = () => openCourse(null);
 $("#btnCancel").onclick = () => dlg.close();
 
 form.onsubmit = async e => {
   e.preventDefault();
-  const slots = [...document.querySelectorAll("#slots .slot")].map(r => ({
-    day: +r.querySelector(".d").value,
-    start: +r.querySelector(".s").value,
-    end: +r.querySelector(".e").value,
-    room: r.querySelector(".room").value.trim() || undefined,
-  }));
+  const slots = [...document.querySelectorAll("#slots .slot")].map(readSlot);
   if (!slots.length) return toast("至少要有一個上課時段");
+  if (slots.some(s => !(s.to > s.from))) return toast("結束時間要晚於開始時間");
   const course = {
     id: editing?.id || uid(),
     semester: editing?.semester || state.semester,
@@ -219,7 +275,7 @@ form.onsubmit = async e => {
     slots,
   };
   const clash = findClash(course);
-  if (clash && !confirm(`與「${clash}」衝堂,仍要儲存嗎?`)) return;
+  if (clash && !confirm(`與「${clash}」時間重疊,仍要儲存嗎?`)) return;
   try { await store.upsert(course); dlg.close(); await reload(); toast("已儲存"); }
   catch (err) { toast("儲存失敗:" + err.message); }
 };
@@ -231,13 +287,13 @@ $("#btnDelete").onclick = async () => {
 function findClash(c) {
   for (const o of state.courses) {
     if (o.id === c.id || o.semester !== c.semester) continue;
-    for (const a of c.slots) for (const b of o.slots || [])
-      if (a.day === b.day && a.start <= b.end && b.start <= a.end) return o.name;
+    for (const a of c.slots) for (const b of o.slots)
+      if (a.day === b.day && a.from < b.to && b.from < a.to) return o.name;
   }
   return null;
 }
 
-// ---------- 學期 / 設定 ----------
+// ---------- 時間表切換 / 設定 ----------
 $("#semSelect").onchange = e => { state.semester = e.target.value; persistMeta(); renderAll(); };
 $("#btnSem").onclick = () => {
   const s = prompt("新增時間表(例如 2026/11)", "");
@@ -249,15 +305,20 @@ $("#btnSem").onclick = () => {
 $("#btnSettings").onclick = () => {
   $("#optWeekend").checked = state.opt.weekend;
   $("#optNight").checked = state.opt.night;
+  $("#optPeriod").checked = state.opt.period;
+  $("#optKeys").value = state.opt.keys;
+  renderAccount();
   $("#setDlg").showModal();
 };
 $("#setDlg").onclose = () => {
   state.opt.weekend = $("#optWeekend").checked;
   state.opt.night = $("#optNight").checked;
+  state.opt.period = $("#optPeriod").checked;
+  state.opt.keys = $("#optKeys").value;
   persistMeta(); renderGrid();
 };
 
-// ---------- 登入 ----------
+// ---------- 帳號 ----------
 let signUp = false;
 const authDlg = $("#authDlg"), authForm = $("#authForm");
 function setAuthMode() {
@@ -267,11 +328,21 @@ function setAuthMode() {
 }
 $("#authToggle").onclick = () => { signUp = !signUp; setAuthMode(); };
 $("#authCancel").onclick = () => authDlg.close();
-$("#btnAuth").onclick = async () => {
-  if (!sb) return toast("尚未設定 Supabase(見 config.js),目前為本機離線模式");
-  if (state.user) { if (confirm("登出?")) await sb.auth.signOut(); return; }
-  $("#authMsg").textContent = "";
-  authDlg.showModal();
+
+function renderAccount() {
+  $("#btnAuth").hidden = !sb || !!state.user; // 標題列只在未登入時顯示「登入」
+  const info = $("#acctInfo"), btn = $("#btnAcct");
+  if (!sb) { info.textContent = "尚未設定 Supabase,目前為本機離線模式。"; btn.hidden = true; return; }
+  btn.hidden = false;
+  info.textContent = state.user ? `已登入:${state.user.email}` : "尚未登入,資料只存在這個瀏覽器。";
+  btn.textContent = state.user ? "登出" : "登入";
+}
+function openAuth() { $("#authMsg").textContent = ""; authDlg.showModal(); }
+$("#btnAuth").onclick = openAuth;
+$("#btnAcct").onclick = async () => {
+  $("#setDlg").close();
+  if (state.user) { if (confirm("登出?")) await sb.auth.signOut(); }
+  else openAuth();
 };
 authForm.onsubmit = async e => {
   e.preventDefault();
@@ -287,7 +358,6 @@ authForm.onsubmit = async e => {
 async function onUser(user) {
   const first = !state.user && user;
   state.user = user;
-  $("#btnAuth").textContent = user ? "登出" : "登入";
   if (first) {
     const loc = localAll();
     if (loc.length && confirm(`偵測到本機有 ${loc.length} 門離線課程,要上傳到你的帳號嗎?`)) {
@@ -301,7 +371,6 @@ if (sb) {
   sb.auth.getSession().then(({ data }) => onUser(data.session?.user || null));
   sb.auth.onAuthStateChange((_e, s) => { const u = s?.user || null; if (u?.id !== state.user?.id) onUser(u); });
 } else {
-  $("#btnAuth").style.opacity = 0.5;
   reload();
 }
 

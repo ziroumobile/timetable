@@ -64,3 +64,13 @@ label.check input{width:auto;margin:0}
 .msg.ok{color:#8be28b}
 #toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:#000c;padding:8px 16px;border-radius:999px;opacity:0;transition:.25s;pointer-events:none;z-index:99}
 #toast.show{opacity:1}
+
+/* 時間軸模式 */
+.body{margin-top:12px}
+.tlabel{position:absolute;left:0;width:var(--label);text-align:center;transform:translateY(-50%);font-size:12px;color:var(--muted);pointer-events:none}
+.tlabel.key{color:var(--accent);font-weight:700;font-size:16px}
+.hline.key{border-top-color:var(--accent);opacity:.55}
+.course small.t{opacity:.6;font-size:clamp(8px,2.3vw,11px)}
+.slot.time{grid-template-columns:1fr 1fr 1fr auto}
+.slot input[type=time]{padding:6px}
+[hidden]{display:none!important}
