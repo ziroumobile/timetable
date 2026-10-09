@@ -164,7 +164,12 @@ function buildAxis() {
       if (rows[r].l === "N") r = Math.min(r + 1, rows.length - 1);
       return [rows[r].s, rows[r].e];
     };
-    return { nDays, order, items, lines, total: y, yRange, toTime };
+    const yMin = (yy, end) => {
+      const r = tops.findIndex((t, k) => yy > t - 0.5 && yy < t + PERIOD_H(rows[k]) + 0.5 && (end ? yy > t + 0.5 : yy < t + PERIOD_H(rows[k]) - 0.5));
+      const row = rows[r < 0 ? (end ? rows.length - 1 : 0) : r];
+      return end ? row.e : row.s;
+    };
+    return { nDays, order, items, lines, total: y, yRange, toTime, yMin };
   }
 
   let lo = 7 * 60, hi = 22 * 60;
@@ -176,6 +181,7 @@ function buildAxis() {
     nDays, order, items, lines, total: (hi - lo) * px,
     yRange: s => [(s.from - lo) * px, (s.to - lo) * px],
     toTime: yy => { const m = lo + Math.floor(yy / px / 60) * 60; return [m, m + 60]; },
+    yMin: yy => Math.round(lo + yy / px),
   };
 }
 
@@ -292,10 +298,14 @@ function renderGrid() {
       if (pos < ax.total) gaps.push([pos, ax.total]);
       for (const [t, b] of gaps) {
         if (b - t < 12) continue;
+        const from = ax.yMin(t, false), to = ax.yMin(b, true);
+        if (!(to > from)) continue;
         const r = document.createElement("div");
-        r.className = "rest";
-        r.style.cssText = `top:${t + 2}px;height:${b - t - 4}px`;
-        if (b - t >= 26) r.textContent = "休息";
+        r.className = "course rest";
+        r.style.cssText = `top:${t + 2}px;height:${b - t - 4}px;left:2px;width:calc(100% - 4px)`;
+        r.innerHTML = "<b>休息</b>";
+        const pseudo = { id: "rest", name: "休息", room: "", note: "", slots: [{ day: d, from, to }] };
+        bindPress(r, () => showInfo(pseudo, null, true), () => openCourse(null, { day: d, from, to: Math.min(to, from + 60) }));
         colOf[d].appendChild(r);
       }
     }
@@ -387,7 +397,9 @@ function bindPress(el, onLong, onTap) {
 // 單節課隱形(例如這一節停課/請假):只淡化那一個時段,不影響同一門課的其他時段
 const slotKey = (c, s) => `${c.id}|${s.day}|${s.from}|${s.to}`;
 const isGhost = (c, s) => (state.opt.ghost || []).includes(slotKey(c, s));
-function showInfo(c, slot) {
+function showInfo(c, slot, rest) {
+  $("#infoRoom").hidden = !!rest; $("#infoRoom").previousElementSibling.hidden = !!rest;
+  $("#btnInfoEdit").hidden = !!rest;
   $("#infoName").textContent = c.name;
   $("#infoRoom").textContent = c.room || "—";
   $("#infoNoteBox").hidden = !c.note;

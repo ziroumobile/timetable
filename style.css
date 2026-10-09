@@ -125,4 +125,4 @@ label textarea{display:block;width:100%;margin-top:4px;background:var(--bg);bord
 .menuPop[hidden]{display:none}
 .menuPop button{background:none;border:0;color:var(--text);text-align:left;padding:10px 12px;border-radius:8px;font-size:15px}
 .menuPop button.on{background:rgba(158,197,255,.15);color:var(--accent)}
-.rest{position:absolute;left:2px;right:2px;border:1px dashed var(--line);border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px;opacity:.7;pointer-events:none;background:rgba(255,255,255,.02)}
+.course.rest{background:#8d96a8;border-color:#6b7385;opacity:.55;color:#1d2230}
