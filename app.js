@@ -172,16 +172,47 @@ function buildAxis() {
     return { nDays, order, items, lines, total: y, yRange, toTime, yMin };
   }
 
-  let lo = 0, hi = 24 * 60; // 一天從 00:00 排到隔天 00:00
-  items.forEach(({ s }) => { lo = Math.min(lo, Math.floor(s.from / 60) * 60); hi = Math.max(hi, Math.ceil(s.to / 60) * 60); });
-  const px = HOUR_PX / 60, keys = keyHours();
+  // 預設顯示 06:00–22:00;有行程超出才往外多顯示 1 小時
+  let lo = 6 * 60, hi = 22 * 60;
+  if (items.length) {
+    const mn = Math.min(...items.map(x => x.s.from)), mx = Math.max(...items.map(x => x.s.to));
+    if (mn < lo) lo = Math.max(0, Math.floor(mn / 60) * 60 - 60);
+    if (mx > hi) hi = Math.min(24 * 60, Math.ceil(mx / 60) * 60 + 60);
+  }
+  const px = HOUR_PX / 60, BRK = 26, keys = keyHours();
+
+  // 開啟休息時:每一天都沒行程、且超過 4 小時的空檔,只留前 2 小時和後 2 小時,中間省略
+  const cuts = [];
+  if (state.opt.rest) {
+    const iv = items.map(({ s }) => [Math.max(lo, s.from), Math.min(hi, s.to)]).filter(([p, q]) => q > p).sort((p, q) => p[0] - q[0]);
+    let pos = lo; const free = [];
+    for (const [p, q] of iv) { if (p > pos) free.push([pos, p]); pos = Math.max(pos, q); }
+    if (pos < hi) free.push([pos, hi]);
+    for (const [fs0, fe] of free) {
+      if (fe - fs0 <= 240) continue;
+      const cs = Math.ceil((fs0 + 120) / 60) * 60, ce = Math.floor((fe - 120) / 60) * 60;
+      if (ce - cs >= 60) cuts.push([cs, ce]);
+    }
+  }
+  const segs = [], breaks = []; let m = lo, y = 0;
+  for (const [cs, ce] of cuts) {
+    segs.push({ m0: m, m1: cs, y0: y }); y += (cs - m) * px;
+    breaks.push({ y, h: BRK, from: cs, to: ce }); y += BRK; m = ce;
+  }
+  segs.push({ m0: m, m1: hi, y0: y }); y += (hi - m) * px;
+  const total = y;
+  const yOf = mm => { const g = segs.find(g => mm >= g.m0 && mm <= g.m1) || segs[segs.length - 1]; return g.y0 + (Math.min(Math.max(mm, g.m0), g.m1) - g.m0) * px; };
   const lines = [];
-  for (let h = lo / 60; h <= hi / 60; h++) lines.push({ y: (h * 60 - lo) * px, label: String(h), key: keys.has(h) });
+  segs.forEach(g => { for (let hh = Math.ceil(g.m0 / 60); hh <= Math.floor(g.m1 / 60); hh++) lines.push({ y: g.y0 + (hh * 60 - g.m0) * px, label: String(hh), key: keys.has(hh) }); });
   return {
-    nDays, order, items, lines, total: (hi - lo) * px,
-    yRange: s => [(s.from - lo) * px, (s.to - lo) * px],
-    toTime: yy => { const m = lo + Math.floor(yy / px / 60) * 60; return [m, m + 60]; },
-    yMin: yy => Math.round(lo + yy / px),
+    nDays, order, items, lines, breaks, total,
+    yRange: s => [yOf(s.from), yOf(s.to)],
+    toTime: yy => {
+      const g = segs.find(g => yy >= g.y0 && yy < g.y0 + (g.m1 - g.m0) * px);
+      if (!g) { const b = breaks.find(b => yy >= b.y && yy < b.y + b.h); return b ? [b.from - 60, b.from] : [hi - 60, hi]; }
+      const mm = Math.floor((g.m0 + (yy - g.y0) / px) / 60) * 60; return [mm, mm + 60];
+    },
+    yMin: yy => { const g = segs.find(g => yy >= g.y0 - 0.5 && yy <= g.y0 + (g.m1 - g.m0) * px + 0.5) || segs[segs.length - 1]; return Math.round(g.m0 + (yy - g.y0) / px); },
   };
 }
 
@@ -193,10 +224,6 @@ function renderMain() {
   document.querySelectorAll("#menuPop button").forEach(b => b.classList.toggle("on", b.dataset.v === state.view));
   if (week) {
     renderWeekBar(); renderGrid();
-    if (!state.scrolled && !state.opt.period) { // 第一次進來先捲到早上 6:30 附近,往上滑就是 00:00
-      state.scrolled = true;
-      requestAnimationFrame(() => window.scrollTo(0, Math.max(0, $("#body").getBoundingClientRect().top + window.scrollY + 6.5 * HOUR_PX - 120)));
-    }
   } else renderMonth();
 }
 function renderWeekBar() {
@@ -269,6 +296,7 @@ function renderGrid() {
       ? `<div class="plabel" style="top:${l.y}px;height:${l.h}px">${l.label}</div>`
       : `<div class="tlabel ${l.key ? "key" : ""}" style="top:${l.y}px">${l.label}</div>`;
   });
+  (ax.breaks || []).forEach(b => { html += `<div class="brk" style="top:${b.y}px;height:${b.h}px">⋯ 省略 ${fmtDur(b.to - b.from)} ⋯</div>`; });
   if (ax.lines[0]?.center) html += `<div class="hline" style="top:${ax.total - 1}px"></div>`;
   html += `<div style="height:${ax.total}px"></div>`; // 佔 label 欄
   for (const d of ax.order) html += `<div class="col" data-day="${d}" style="height:${ax.total}px"></div>`;
@@ -306,15 +334,19 @@ function renderGrid() {
         if (b - t < 3) continue;
         const from = ax.yMin(t, false), to = ax.yMin(b, true);
         if (!(to > from)) continue;
-        const r = document.createElement("div");
-        r.className = "course rest";
-        const rh = Math.max(2, b - t - 2);
-        r.style.cssText = `top:${t + 1}px;height:${rh}px;left:2px;width:calc(100% - 4px)`;
-        if (rh < 22) r.classList.add("tiny");
-        r.innerHTML = rh >= 26 ? "<b>休息</b>" : ""; // 太小的格子不寫字,功能照舊(長按看詳情、點一下新增)
         const pseudo = { id: "rest", name: "休息", room: "", note: "", slots: [{ day: d, from, to }] };
-        bindPress(r, () => showInfo(pseudo, null, true), () => openCourse(null, { day: d, from, to: Math.min(to, from + 60) }));
-        colOf[d].appendChild(r);
+        let pieces = [[t, b]];
+        for (const br of ax.breaks || []) pieces = pieces.flatMap(([p, q]) => (br.y >= q || br.y + br.h <= p) ? [[p, q]] : [[p, br.y], [br.y + br.h, q]].filter(([u, v]) => v - u > 0));
+        for (const [pt, pb] of pieces) {
+          const r = document.createElement("div");
+          r.className = "course rest";
+          const rh = Math.max(2, pb - pt - 2);
+          r.style.cssText = `top:${pt + 1}px;height:${rh}px;left:2px;width:calc(100% - 4px)`;
+          if (rh < 22) r.classList.add("tiny");
+          r.innerHTML = rh >= 26 ? "<b>休息</b>" : ""; // 太小的格子不寫字,功能照舊(長按看詳情、點一下新增)
+          bindPress(r, () => showInfo(pseudo, null, true), () => openCourse(null, { day: d, from, to: Math.min(to, from + 60) }));
+          colOf[d].appendChild(r);
+        }
       }
     }
   }
