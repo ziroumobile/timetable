@@ -141,8 +141,11 @@ function buildAxis() {
 function renderAll() { renderSemesters(); renderGrid(); renderAccount(); }
 
 function renderSemesters() {
-  $("#semSelect").innerHTML = state.semesters
-    .map(s => `<option value="${esc(s)}" ${s === state.semester ? "selected" : ""}>${esc(s)}</option>`).join("");
+  const box = $("#semTabs");
+  box.innerHTML = [...state.semesters].sort()
+    .map(s => `<button type="button" role="tab" class="tab ${s === state.semester ? "on" : ""}" data-s="${esc(s)}">${esc(s)}</button>`).join("");
+  box.querySelectorAll(".tab").forEach(t => { t.onclick = () => { state.semester = t.dataset.s; persistMeta(); renderAll(); }; });
+  box.querySelector(".tab.on")?.scrollIntoView({ inline: "center", block: "nearest" });
 }
 
 // 點星期標題:整天變半透明(補假/停課),再點一次恢復
@@ -361,7 +364,6 @@ function findClash(c) {
 }
 
 // ---------- 時間表切換 / 設定 ----------
-$("#semSelect").onchange = e => { state.semester = e.target.value; persistMeta(); renderAll(); };
 $("#btnSem").onclick = () => {
   const s = prompt("新增時間表(例如 2026/11)", "");
   if (!s || !s.trim()) return;

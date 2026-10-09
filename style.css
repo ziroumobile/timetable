@@ -87,3 +87,8 @@ label.check input{width:auto;margin:0}
 #days .dh{cursor:pointer;-webkit-user-select:none;user-select:none}
 #days .dh.off{opacity:.4;text-decoration:line-through}
 .course.off{opacity:.3;filter:saturate(.5)}
+.pill{padding:6px 10px}
+.tabs{flex:1;min-width:0;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:none;background:transparent;border:0;border-bottom:3px solid transparent;border-radius:6px 6px 0 0;color:var(--muted);padding:6px 14px;font-size:15px;font-weight:600}
+.tab.on{color:var(--accent);background:rgba(158,197,255,.12);border-bottom-color:var(--accent)}
