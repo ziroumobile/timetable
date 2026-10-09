@@ -10,7 +10,8 @@ const PERIODS = [
 ];
 const PERIOD_H = p => (p.l === "N" ? 28 : 78);
 const HOUR_PX = 56;
-const PALETTE = ["#e0b4a8", "#a9aed0", "#bba0c4", "#b9c9a6", "#cbbd9c", "#a4c0c8", "#c4b5a0", "#c9a0ac", "#9fb4c8", "#a8caa4", "#d6c18a", "#9ed0c4"];
+const PALETTE = ["#e0b4a8", "#a9aed0", "#bba0c4", "#b9c9a6", "#cbbd9c", "#a4c0c8", "#c4b5a0", "#c9a0ac", "#9fb4c8", "#a8caa4", "#d6c18a", "#9ed0c4",
+  "#e8a0a0", "#f0b27a", "#f2d16b", "#b5d96b", "#7fcf9b", "#6fd0d0", "#7fb8e8", "#8a9be8", "#b08ae8", "#e08ad0", "#d0d3dc", "#a3a8b8"];
 const LS = { local: "tt.local.courses", sem: "tt.sem2", sems: "tt.sems", opt: "tt.opt", phr: "tt.phrases" };
 
 // ---------- 狀態 ----------
@@ -125,6 +126,18 @@ const pad = n => String(n).padStart(2, "0");
 const fmt = m => `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
 // 時長顯示:不到 1 小時只顯示分鐘
 const fmtDur = m => m < 60 ? `${m} 分鐘` : (m % 60 ? `${Math.floor(m / 60)} 小時 ${m % 60} 分鐘` : `${m / 60} 小時`);
+// 輸入時間:可直接打 830、0830、8:30、8.30、14 等,全形也行;回傳分鐘,格式不對回傳 NaN
+function parseTimeInput(str) {
+  const s = String(str || "").trim().replace(/[０-９]/g, d => String.fromCharCode(d.charCodeAt(0) - 65248)).replace(/[：．。.,，]/g, ":").replace(/\s+/g, "");
+  let h, m;
+  let r;
+  if ((r = /^(\d{1,2}):(\d{1,2})$/.exec(s))) { h = +r[1]; m = +r[2]; }
+  else if ((r = /^(\d{1,2})$/.exec(s))) { h = +r[1]; m = 0; }
+  else if ((r = /^(\d{1,2})(\d{2})$/.exec(s))) { h = +r[1]; m = +r[2]; }
+  else return NaN;
+  if (m > 59 || h > 24 || (h === 24 && m > 0)) return NaN;
+  return h * 60 + m;
+}
 const parseT = v => { const [h, m] = v.split(":").map(Number); return h * 60 + (m || 0); };
 const periodAtOrAfter = m => { const i = PERIODS.findIndex(p => p.e > m); return i < 0 ? PERIODS.length - 1 : i; };
 const periodAtOrBefore = m => { let r = 0; PERIODS.forEach((p, i) => { if (p.s < m) r = i; }); return r; };
@@ -482,17 +495,25 @@ function addSlotRow(s) {
     div.innerHTML = `<select class="d">${dayOpts(s.day)}</select>
       <select class="s">${periodOpts(periodAtOrAfter(s.from))}</select>
       <select class="e">${periodOpts(periodAtOrBefore(s.to))}</select>
-      <button type="button" title="移除">✕</button>${roomInput}`;
+      <button type="button" class="rm" title="移除">✕</button>${roomInput}`;
     const sSel = div.querySelector(".s"), eSel = div.querySelector(".e");
     sSel.onchange = () => { if (+eSel.value < +sSel.value) eSel.value = sSel.value; };
     eSel.onchange = () => { if (+eSel.value < +sSel.value) sSel.value = eSel.value; };
   } else {
     div.innerHTML = `<select class="d">${dayOpts(s.day)}</select>
-      <input class="from" type="time" step="300" value="${fmt(s.from)}" required>
-      <input class="to" type="time" step="300" value="${fmt(s.to)}" required>
-      <button type="button" title="移除">✕</button>${roomInput}`;
+      <input class="from" type="text" inputmode="numeric" autocomplete="off" placeholder="開始 0830" maxlength="6" value="${fmt(s.from)}" required>
+      <input class="to" type="text" inputmode="numeric" autocomplete="off" placeholder="結束 0930" maxlength="6" value="${fmt(s.to)}" required>
+      <button type="button" class="rm" title="移除">✕</button>${roomInput}
+      <div class="durs"><span>時長</span>${[[50, "50 分"], [60, "1 小時"], [90, "1.5 小時"], [120, "2 小時"], [180, "3 小時"]].map(([m, l]) => `<button type="button" class="dur" data-m="${m}">${l}</button>`).join("")}</div>`;
+    const f = div.querySelector(".from"), t = div.querySelector(".to");
+    const norm = el => { const v = parseTimeInput(el.value); el.classList.toggle("bad", Number.isNaN(v)); if (!Number.isNaN(v)) el.value = fmt(v); return v; };
+    let dur = Math.max(10, s.to - s.from);
+    f.onfocus = t.onfocus = e => e.target.select();
+    f.onchange = () => { const v = norm(f); if (!Number.isNaN(v)) { t.value = fmt(Math.min(1440, v + dur)); t.classList.remove("bad"); } };
+    t.onchange = () => { const v = norm(t), fv = parseTimeInput(f.value); if (!Number.isNaN(v) && !Number.isNaN(fv) && v > fv) dur = v - fv; };
+    div.querySelectorAll(".dur").forEach(b => { b.onclick = () => { const fv = parseTimeInput(f.value); if (Number.isNaN(fv)) return toast("先輸入開始時間"); dur = +b.dataset.m; t.value = fmt(Math.min(1440, fv + dur)); t.classList.remove("bad"); }; });
   }
-  div.querySelector("button").onclick = () => div.remove();
+  div.querySelector(".rm").onclick = () => div.remove();
   $("#slots").appendChild(div);
 }
 function readSlot(r) {
@@ -501,7 +522,7 @@ function readSlot(r) {
   if (state.opt.period) {
     return { day, from: PERIODS[+r.querySelector(".s").value].s, to: PERIODS[+r.querySelector(".e").value].e, room };
   }
-  return { day, from: parseT(r.querySelector(".from").value), to: parseT(r.querySelector(".to").value), room };
+  return { day, from: parseTimeInput(r.querySelector(".from").value), to: parseTimeInput(r.querySelector(".to").value), room };
 }
 
 // ---------- 常用詞 ----------
@@ -549,8 +570,12 @@ function openCourse(c, preset) {
   dlg.showModal();
 }
 function renderSwatches() {
-  $("#swatches").innerHTML = PALETTE.map(p => `<div class="sw ${p === editColor ? "on" : ""}" data-c="${p}" style="background:${p}"></div>`).join("");
-  document.querySelectorAll(".sw").forEach(el => { el.onclick = () => { editColor = el.dataset.c; renderSwatches(); }; });
+  const custom = !PALETTE.includes(editColor);
+  $("#swatches").innerHTML = PALETTE.map(p => `<div class="sw ${p === editColor ? "on" : ""}" data-c="${p}" style="background:${p}"></div>`).join("")
+    + `<label class="sw custom ${custom ? "on" : ""}" title="自訂顏色" style="${custom ? "background:" + editColor : ""}">${custom ? "" : "＋"}<input type="color" value="${/^#[0-9a-f]{6}$/i.test(editColor) ? editColor : "#9ec5ff"}"></label>`;
+  document.querySelectorAll(".sw[data-c]").forEach(el => { el.onclick = () => { editColor = el.dataset.c; renderSwatches(); }; });
+  const pick = $("#swatches .custom input");
+  pick.oninput = () => { editColor = pick.value; $("#swatches .custom").style.background = pick.value; document.querySelectorAll(".sw.on").forEach(x => x.classList.remove("on")); $("#swatches .custom").classList.add("on"); $("#swatches .custom").firstChild.nodeType === 3 && ($("#swatches .custom").firstChild.textContent = ""); };
 }
 $("#addSlot").onclick = () => addSlotRow({ day: 0, from: 480, to: 540 });
 $("#btnAdd").onclick = () => openCourse(null, { day: dayOfDate(state.anchor), from: 480, to: 540 });
@@ -560,6 +585,7 @@ form.onsubmit = async e => {
   e.preventDefault();
   const slots = [...document.querySelectorAll("#slots .slot")].map(readSlot);
   if (!slots.length) return toast("至少要有一個上課時段");
+  if (slots.some(s => Number.isNaN(s.from) || Number.isNaN(s.to))) return toast("時間格式不對,請輸入像 0830 或 8:30");
   if (slots.some(s => !(s.to > s.from))) return toast("結束時間要晚於開始時間");
   const course = {
     id: editing?.id || uid(),
