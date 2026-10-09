@@ -191,7 +191,7 @@ function renderGrid() {
     const room = it.s.room || it.c.room;
     el.innerHTML = `<b>${esc(it.c.name)}</b>${room ? `<small>${esc(room)}</small>` : ""}` +
       (!state.opt.period && h > 64 ? `<small class="t">${fmt(it.s.from)}–${fmt(it.s.to)}</small>` : "");
-    el.onclick = e => { e.stopPropagation(); openCourse(it.c); };
+    bindPress(el, it.c);
     cols[it.s.day].appendChild(el);
   }
   // 點空白新增
@@ -202,6 +202,30 @@ function renderGrid() {
     };
   });
 }
+
+// ---------- 長按看詳情 ----------
+function bindPress(el, c) {
+  let timer = null, fired = false, x0 = 0, y0 = 0;
+  const cancel = () => { clearTimeout(timer); timer = null; };
+  el.onpointerdown = e => {
+    fired = false; x0 = e.clientX; y0 = e.clientY;
+    timer = setTimeout(() => { fired = true; timer = null; navigator.vibrate?.(15); showInfo(c); }, 450);
+  };
+  el.onpointermove = e => { if (timer && Math.hypot(e.clientX - x0, e.clientY - y0) > 8) cancel(); };
+  el.onpointerup = el.onpointerleave = el.onpointercancel = cancel;
+  el.oncontextmenu = e => e.preventDefault();
+  el.onclick = e => { e.stopPropagation(); if (fired) { fired = false; return; } openCourse(c); };
+}
+function showInfo(c) {
+  $("#infoName").textContent = c.name;
+  $("#infoRoom").textContent = c.room || "—";
+  $("#infoTimes").innerHTML = c.slots.slice().sort((p, q) => p.day - q.day || p.from - q.from)
+    .map(s => `<li>週${DAYS[s.day]} ${fmt(s.from)}–${fmt(s.to)}${s.room && s.room !== c.room ? ` <span class="muted">· ${esc(s.room)}</span>` : ""}</li>`).join("");
+  $("#btnInfoEdit").onclick = () => { $("#infoDlg").close(); openCourse(c); };
+  $("#infoDlg").showModal();
+}
+$("#btnInfoClose").onclick = () => $("#infoDlg").close();
+$("#infoDlg").onclick = e => { if (e.target === e.currentTarget) e.currentTarget.close(); };
 
 // ---------- 課程編輯 ----------
 let editing = null, editColor = PALETTE[0];
@@ -302,13 +326,20 @@ form.onsubmit = async e => {
   };
   const clash = findClash(course);
   if (clash && !confirm(`與「${clash}」時間重疊,仍要儲存嗎?`)) return;
-  try { await store.upsert(course); dlg.close(); await reload(); toast("已儲存"); }
-  catch (err) { toast("儲存失敗:" + err.message); }
+  // 先更新畫面再背景寫入,不用等網路
+  const i = state.courses.findIndex(x => x.id === course.id);
+  if (i >= 0) state.courses[i] = course; else state.courses.push(course);
+  dlg.close(); renderAll(); toast("已儲存");
+  try { await store.upsert(course); }
+  catch (err) { toast("儲存失敗:" + err.message); await reload(); }
 };
 $("#btnDelete").onclick = async () => {
   if (!editing || !confirm(`刪除「${editing.name}」?`)) return;
-  try { await store.remove(editing.id); dlg.close(); await reload(); toast("已刪除"); }
-  catch (err) { toast("刪除失敗:" + err.message); }
+  const id = editing.id;
+  state.courses = state.courses.filter(x => x.id !== id);
+  dlg.close(); renderAll(); toast("已刪除");
+  try { await store.remove(id); }
+  catch (err) { toast("刪除失敗:" + err.message); await reload(); }
 };
 function findClash(c) {
   for (const o of state.courses) {
