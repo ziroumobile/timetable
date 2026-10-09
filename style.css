@@ -76,7 +76,9 @@ label.check input{width:auto;margin:0}
 [hidden]{display:none!important}
 
 .phr{display:flex;flex-wrap:wrap;gap:6px;margin:-4px 0 10px}
-.chip{display:inline-flex;align-items:center;gap:6px;background:#11141b;border:1px solid #2a2f3b;border-radius:999px;padding:3px 6px 3px 10px;font-size:13px;color:var(--text,#e6e8ee)}
-.chip b{font-weight:400;cursor:pointer}
-.chip i{font-style:normal;font-size:11px;color:#8b92a3;cursor:pointer}
+.ph{display:inline-flex;align-items:center;gap:6px;background:#11141b;border:1px solid #2a2f3b;border-radius:999px;padding:3px 6px 3px 10px;font-size:13px;color:var(--text,#e6e8ee)}
+.ph b{font-weight:400;cursor:pointer}
+.ph i{font-style:normal;font-size:11px;color:#8b92a3;cursor:pointer}
 .chipAdd{background:#11141b;border:1px dashed #2a2f3b;border-radius:999px;color:var(--accent);padding:3px 12px;font-size:14px;line-height:1.2}
+.install{width:100%;background:transparent;border:2px solid #3b5a94;color:var(--accent);border-radius:14px;padding:12px;font-weight:600;font-size:16px}
+[hidden]{display:none!important}

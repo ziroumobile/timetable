@@ -246,9 +246,9 @@ function renderPhrases() {
   const all = phrases();
   document.querySelectorAll(".phr").forEach(box => {
     const f = box.dataset.f;
-    box.innerHTML = all[f].map((w, i) => `<span class="chip" data-i="${i}"><b>${esc(w)}</b><i title="移除">✕</i></span>`).join("")
+    box.innerHTML = all[f].map((w, i) => `<span class="ph" data-i="${i}"><b>${esc(w)}</b><i title="移除">✕</i></span>`).join("")
       + `<button type="button" class="chipAdd" title="把目前輸入的內容存成常用詞">＋</button>`;
-    box.querySelectorAll(".chip").forEach(ch => {
+    box.querySelectorAll(".ph[data-i]").forEach(ch => {
       ch.querySelector("b").onclick = () => { form[f].value = all[f][+ch.dataset.i]; form[f].focus(); };
       ch.querySelector("i").onclick = () => {
         all[f].splice(+ch.dataset.i, 1);
@@ -334,6 +334,7 @@ $("#btnSettings").onclick = () => {
   $("#optPeriod").checked = state.opt.period;
   $("#optKeys").value = state.opt.keys;
   renderAccount();
+  renderInstall();
   $("#setDlg").showModal();
 };
 $("#setDlg").onclose = () => {
@@ -409,3 +410,24 @@ function shade(hex, amt) {
 }
 let tt;
 function toast(m) { const t = $("#toast"); t.textContent = m; t.classList.add("show"); clearTimeout(tt); tt = setTimeout(() => t.classList.remove("show"), 2200); }
+
+// ---------- 安裝成 App (PWA) ----------
+let installEvt = null;
+const isStandalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+function renderInstall() {
+  const box = $("#installBox");
+  if (isStandalone()) { box.hidden = true; return; }
+  if (installEvt) { box.hidden = false; $("#installHint").textContent = "加入主畫面,像 App 一樣使用"; $("#btnInstall").hidden = false; }
+  else if (isIOS) { box.hidden = false; $("#installHint").textContent = "在 Safari 按下方「分享」→「加入主畫面」"; $("#btnInstall").hidden = true; }
+  else box.hidden = true;
+}
+window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); installEvt = e; renderInstall(); });
+window.addEventListener("appinstalled", () => { installEvt = null; renderInstall(); toast("已安裝"); });
+$("#btnInstall").onclick = async () => {
+  if (!installEvt) return;
+  installEvt.prompt();
+  await installEvt.userChoice;
+  installEvt = null; renderInstall();
+};
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});

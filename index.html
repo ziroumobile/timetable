@@ -5,7 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#11141b">
 <title>課表</title>
-<link rel="stylesheet" href="style.css?v=5">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="課表">
+<link rel="stylesheet" href="style.css?v=6">
 </head>
 <body>
 <header>
@@ -61,6 +67,11 @@
     <h3>節次</h3>
     <label class="check"><input type="checkbox" id="optPeriod"> 用「第幾節課」顯示與輸入</label>
     <label class="check"><input type="checkbox" id="optNight"> 節次模式顯示 A–D 節(晚間)</label>
+    <div id="installBox" hidden>
+      <h3>安裝 App</h3>
+      <p class="muted" id="installHint">加入主畫面,像 App 一樣使用</p>
+      <button type="button" id="btnInstall" class="install">📱 安裝</button>
+    </div>
     <h3>帳號</h3>
     <p class="muted" id="acctInfo"></p>
     <button type="button" id="btnAcct" class="chip">登入</button>
@@ -88,7 +99,7 @@
 <div id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="config.js?v=5"></script>
-<script src="app.js?v=5"></script>
+<script src="config.js?v=6"></script>
+<script src="app.js?v=6"></script>
 </body>
 </html>
