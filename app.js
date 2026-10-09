@@ -19,7 +19,7 @@ const state = {
   courses: [],
   semester: localStorage.getItem(LS.sem) || defaultSemester(),
   semesters: JSON.parse(localStorage.getItem(LS.sems) || "[]"),
-  opt: Object.assign({ weekend: true, off: [], night: false, period: false, keys: "7, 12, 18" }, JSON.parse(localStorage.getItem(LS.opt) || "{}")),
+  opt: Object.assign({ weekend: true, off: [], locked: [], night: false, period: false, keys: "7, 12, 18" }, JSON.parse(localStorage.getItem(LS.opt) || "{}")),
   user: null,
 };
 function defaultSemester() {
@@ -162,7 +162,7 @@ function renderAll() { renderSemesters(); renderGrid(); renderAccount(); }
 function renderSemesters() {
   const box = $("#semTabs");
   box.innerHTML = [...state.semesters].sort()
-    .map(s => `<button type="button" role="tab" class="tab ${s === state.semester ? "on" : ""}" data-s="${esc(s)}">${esc(s)}</button>`).join("");
+    .map(s => `<button type="button" role="tab" class="tab ${s === state.semester ? "on" : ""}" data-s="${esc(s)}">${isLocked(s) ? "🔒 " : ""}${esc(s)}</button>`).join("");
   box.querySelectorAll(".tab").forEach(t => bindPress(t, () => openSheet(t.dataset.s), () => { state.semester = t.dataset.s; persistMeta(); renderAll(); }));
   box.querySelector(".tab.on")?.scrollIntoView({ inline: "center", block: "nearest" });
 }
@@ -242,10 +242,19 @@ function openSheet(sem) {
   const n = state.courses.filter(c => c.semester === sem).length;
   $("#sheetName").textContent = sem;
   $("#sheetCount").textContent = n ? `共 ${n} 門課` : "目前沒有課程";
-  $("#btnSheetClear").disabled = !n;
+  $("#btnSheetClear").disabled = !n || isLocked(sem);
+  $("#btnSheetLock").textContent = isLocked(sem) ? "🔓 解除鎖定" : "🔒 鎖定日期簿";
   $("#btnSheetCopy").disabled = !n;
   $("#sheetDlg").showModal();
 }
+$("#btnSheetLock").onclick = () => {
+  const s = new Set(state.opt.locked || []);
+  const was = s.has(sheetSem);
+  if (was) s.delete(sheetSem); else s.add(sheetSem);
+  state.opt.locked = [...s];
+  persistMeta(); renderAll(); openSheet(sheetSem);
+  toast(was ? "已解除鎖定" : "已鎖定,不能再新增、修改或清除");
+};
 $("#btnSheetClose").onclick = () => $("#sheetDlg").close();
 $("#sheetDlg").onclick = e => { if (e.target === e.currentTarget) e.currentTarget.close(); };
 $("#btnSheetCopy").onclick = async () => {
@@ -265,6 +274,7 @@ $("#btnSheetCopy").onclick = async () => {
 };
 $("#btnSheetClear").onclick = async () => {
   const sem = sheetSem;
+  if (isLocked(sem)) return toast("已鎖定,先解除鎖定");
   const n = state.courses.filter(c => c.semester === sem).length;
   if (!confirm(`清除「${sem}」的全部 ${n} 門課?這個動作無法復原。`)) return;
   $("#sheetDlg").close();
@@ -361,7 +371,12 @@ function renderPhrases() {
   });
 }
 
+const isLocked = s => (state.opt.locked || []).includes(s);
 function openCourse(c, preset) {
+  if (isLocked(c?.semester || state.semester)) {
+    if (c) showInfo(c); else toast("這個日期簿已鎖定,先解除鎖定才能新增");
+    return;
+  }
   editing = c;
   $("#dlgTitle").textContent = c ? "編輯名稱" : "新增名稱";
   form.name.value = c?.name || "";
@@ -533,3 +548,32 @@ $("#btnInstall").onclick = async () => {
   installEvt = null; renderInstall();
 };
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+
+// ---------- 新手教學 ----------
+const TUT = [
+  { t: "歡迎使用課表 👋", d: "點課表上的空白格,或右下角的 ＋,就能新增一門課。點已經有的方塊可以編輯。一門課可以有多個時段,例如週二和週四都有課。" },
+  { t: "長按看詳情", d: "按住課程方塊約半秒,會顯示完整的名稱、地點和所有上課時間,方塊上就不用塞滿字。" },
+  { t: "常用詞", d: "在「名稱」「地點」輸入條下面按 ＋,可以把目前輸入的字存成常用詞。之後點一下標籤就自動填入,按 ✕ 可移除。" },
+  { t: "補假 / 停課", d: "點上方的星期標題(一、二、三…),那一天的課會整天變半透明;再點一次就恢復。" },
+  { t: "日期簿分頁", d: "底部像 Excel 的工作表,按 ＋ 新增日期簿、點分頁切換。長按分頁可以「複製」整份課表、「清除」全部課程,或「鎖定」避免誤改。" },
+  { t: "更多設定", d: "點右上角 ⚙ 可顯示週六日、改用「第幾節課」、登入帳號雲端同步,也能把這個網頁安裝成 App。想再看一次教學,在設定裡就找得到。" },
+];
+let tutI = 0;
+const TUT_KEY = "tt.tutorial.hide";
+function renderTut() {
+  const p = TUT[tutI], last = tutI === TUT.length - 1;
+  $("#tutTitle").textContent = p.t;
+  $("#tutBody").textContent = p.d;
+  $("#tutDots").innerHTML = TUT.map((_, i) => `<i class="${i === tutI ? "on" : ""}"></i>`).join("");
+  $("#btnTutPrev").style.visibility = tutI ? "visible" : "hidden";
+  $("#btnTutNext").textContent = last ? "完成" : "下一頁";
+}
+function openTutorial() { tutI = 0; renderTut(); $("#tutHide").checked = localStorage.getItem(TUT_KEY) === "1"; $("#tutDlg").showModal(); }
+$("#btnTutPrev").onclick = () => { tutI = Math.max(0, tutI - 1); renderTut(); };
+$("#btnTutNext").onclick = () => { if (tutI < TUT.length - 1) { tutI++; renderTut(); } else $("#tutDlg").close(); };
+$("#btnTutSkip").onclick = () => $("#tutDlg").close();
+$("#tutDlg").onclose = () => {
+  try { localStorage.setItem(TUT_KEY, $("#tutHide").checked ? "1" : "0"); } catch {}
+};
+$("#btnTutorial").onclick = () => { $("#setDlg").close(); openTutorial(); };
+if (localStorage.getItem(TUT_KEY) !== "1") setTimeout(openTutorial, 500);

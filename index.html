@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="課表">
-<link rel="stylesheet" href="style.css?v=12">
+<link rel="stylesheet" href="style.css?v=13">
 </head>
 <body>
 <header>
@@ -74,9 +74,26 @@
     <p class="muted" id="sheetCount"></p>
     <div class="sheetBtns">
       <button type="button" id="btnSheetCopy">複製日期簿</button>
+      <button type="button" id="btnSheetLock">🔒 鎖定日期簿</button>
       <button type="button" id="btnSheetClear" class="danger">清除全部課程</button>
     </div>
     <div class="actions"><div class="spacer"></div><button type="button" id="btnSheetClose" class="primary">關閉</button></div>
+  </div>
+</dialog>
+
+<!-- 新手教學 dialog -->
+<dialog id="tutDlg">
+  <div class="info">
+    <h2 id="tutTitle"></h2>
+    <p id="tutBody" class="tutBody"></p>
+    <div id="tutDots" class="dots"></div>
+    <label class="check"><input type="checkbox" id="tutHide"> 不再顯示</label>
+    <div class="actions">
+      <button type="button" id="btnTutSkip" class="link">略過</button>
+      <div class="spacer"></div>
+      <button type="button" id="btnTutPrev">上一頁</button>
+      <button type="button" id="btnTutNext" class="primary">下一頁</button>
+    </div>
   </div>
 </dialog>
 
@@ -95,6 +112,8 @@
       <p class="muted" id="installHint">加入主畫面,像 App 一樣使用</p>
       <button type="button" id="btnInstall" class="install">📱 安裝</button>
     </div>
+    <h3>教學</h3>
+    <button type="button" id="btnTutorial" class="chip">查看新手教學</button>
     <h3>帳號</h3>
     <p class="muted" id="acctInfo"></p>
     <button type="button" id="btnAcct" class="chip">登入</button>
@@ -122,7 +141,7 @@
 <div id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="config.js?v=12"></script>
-<script src="app.js?v=12"></script>
+<script src="config.js?v=13"></script>
+<script src="app.js?v=13"></script>
 </body>
 </html>
