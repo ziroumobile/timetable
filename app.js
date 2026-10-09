@@ -172,7 +172,7 @@ function buildAxis() {
     return { nDays, order, items, lines, total: y, yRange, toTime, yMin };
   }
 
-  let lo = 7 * 60, hi = 22 * 60;
+  let lo = 0, hi = 24 * 60; // 一天從 00:00 排到隔天 00:00
   items.forEach(({ s }) => { lo = Math.min(lo, Math.floor(s.from / 60) * 60); hi = Math.max(hi, Math.ceil(s.to / 60) * 60); });
   const px = HOUR_PX / 60, keys = keyHours();
   const lines = [];
@@ -191,7 +191,13 @@ function renderMain() {
   const week = state.view === "week";
   $("#monthView").hidden = week; $("main").hidden = !week;
   document.querySelectorAll("#menuPop button").forEach(b => b.classList.toggle("on", b.dataset.v === state.view));
-  if (week) { renderWeekBar(); renderGrid(); } else renderMonth();
+  if (week) {
+    renderWeekBar(); renderGrid();
+    if (!state.scrolled && !state.opt.period) { // 第一次進來先捲到早上 6:30 附近,往上滑就是 00:00
+      state.scrolled = true;
+      requestAnimationFrame(() => window.scrollTo(0, Math.max(0, $("#body").getBoundingClientRect().top + window.scrollY + 6.5 * HOUR_PX - 120)));
+    }
+  } else renderMonth();
 }
 function renderWeekBar() {
   const s = weekStart(state.anchor), e = addDays(s, 6), f = d => `${d.getMonth() + 1}/${d.getDate()}`;
