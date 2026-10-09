@@ -286,7 +286,7 @@ authForm.onsubmit = async e => {
   const email = authForm.email.value.trim(), password = authForm.password.value;
   const msg = $("#authMsg"); msg.className = "msg"; msg.textContent = "處理中…";
   const { data, error } = signUp
-    ? await sb.auth.signUp({ email, password })
+    ? await sb.auth.signUp({ email, password, options: { emailRedirectTo: location.origin + location.pathname } })
     : await sb.auth.signInWithPassword({ email, password });
   if (error) { msg.textContent = error.message; return; }
   if (signUp && !data.session) { msg.className = "msg ok"; msg.textContent = "請到信箱點驗證連結後再登入"; return; }
