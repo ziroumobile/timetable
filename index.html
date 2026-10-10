@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="行程">
-<link rel="stylesheet" href="style.css?v=47">
+<link rel="stylesheet" href="style.css?v=48">
 </head>
 <body>
 <header>
@@ -178,6 +178,38 @@
   </div>
 </dialog>
 
+<!-- 更新日誌 dialog -->
+<dialog id="logDlg">
+  <div class="info">
+    <h2>更新日誌</h2>
+    <p class="muted">最近 10 次更新</p>
+    <div id="changelog" class="changelog"></div>
+    <div class="actions"><div class="spacer"></div><button type="button" id="btnLogClose" class="primary">關閉</button></div>
+  </div>
+</dialog>
+
+<!-- 匯入學校課程 dialog -->
+<dialog id="impDlg">
+  <div class="info">
+    <h2>匯入學校課程</h2>
+    <p class="muted impHelp">只會匯入「課程名稱、時間、地點」。資料都在你的瀏覽器裡解析,不會傳到別處。</p>
+    <h3>方式一:學校的課表網址(API)</h3>
+    <div class="impRow"><input id="impUrl" type="url" inputmode="url" placeholder="https://…(回傳 JSON 的網址)"><button type="button" id="btnImpFetch" class="chip">抓取</button></div>
+    <p class="muted impNote">網址要允許跨網站讀取、且不需要登入,否則請用方式二。</p>
+    <h3>方式二:選檔案或貼上內容</h3>
+    <input id="impFile" type="file" accept=".json,.csv,.tsv,.ics,.txt,application/json,text/csv,text/calendar,text/plain">
+    <textarea id="impText" rows="4" placeholder="貼上 JSON、CSV 或 iCal(.ics)內容"></textarea>
+    <button type="button" id="btnImpParse" class="chip">解析</button>
+    <div id="impPreview" class="impPreview" hidden>
+      <h3>預覽(<span id="impCount"></span>)</h3>
+      <div id="impList" class="calList"></div>
+      <label>匯入到哪個日期簿<input id="impSheet" maxlength="30"></label>
+    </div>
+    <p id="impMsg" class="msg"></p>
+    <div class="actions"><button type="button" id="btnImpExample" class="link">格式範例</button><div class="spacer"></div><button type="button" id="btnImpClose">取消</button><button type="button" id="btnImpDo" class="primary" disabled>匯入</button></div>
+  </div>
+</dialog>
+
 <!-- 設定 dialog -->
 <dialog id="setDlg">
   <form method="dialog">
@@ -196,13 +228,14 @@
       <p class="muted" id="installHint">加入主畫面,像 App 一樣使用</p>
       <button type="button" id="btnInstall" class="install">📱 安裝</button>
     </div>
+    <h3>匯入</h3>
+    <button type="button" id="btnImport" class="chip">匯入學校課程</button>
     <h3>教學</h3>
     <button type="button" id="btnTutorial" class="chip">查看新手教學</button>
     <h3>帳號</h3>
     <p class="muted" id="acctInfo"></p>
     <button type="button" id="btnAcct" class="chip">登入</button>
-    <p class="muted verLine">版本 <b id="appVer"></b></p>
-    <div id="changelog" class="changelog"></div>
+    <p class="muted verLine">版本 <b id="appVer"></b> · <button type="button" id="btnChangelog" class="link inl">更新日誌</button></p>
     <div class="actions"><div class="spacer"></div><button class="primary">完成</button></div>
   </form>
 </dialog>
@@ -227,7 +260,7 @@
 <div id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="config.js?v=47"></script>
-<script src="app.js?v=47"></script>
+<script src="config.js?v=48"></script>
+<script src="app.js?v=48"></script>
 </body>
 </html>

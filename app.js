@@ -185,29 +185,37 @@ function buildAxis() {
     return { nDays, order, items, lines, total: y, yRange, toTime, yMin };
   }
 
-  // 顯示範圍依「有行程的時間」裁切,沒有行程的頭尾整點不顯示:
-  //  · 凌晨(06:00 以前)有行程:從那個整點開始顯示,最多顯示到最後一個行程結束的整點(例如行程在 1:10 → 顯示到 2:00);
-  //    接著到白天第一個有行程的整點之間用細條省略(例如 6:00 沒行程就從 7:00 繼續)
-  //  · 白天:從第一個有行程的整點開始,到最後一個行程結束的整點為止(23:00 沒行程就停在 23 點以前)
+  // 顯示範圍依「有行程的時間」裁切,沒有行程的頭尾整點不顯示;凌晨(06:00 前)、白天、深夜(22:00 後)各自成一塊,
+  // 塊與塊之間完全沒有行程的空檔用細條省略:
+  //  · 凌晨有行程:從那個整點開始,最多顯示到最後一個行程結束的整點(行程在 1:10 → 顯示到 2:00)
+  //  · 白天:從第一個有行程的整點到最後一個行程結束的整點(6:00 沒行程就從 7:00 開始)
+  //  · 深夜(22:00 後)有行程:只顯示那些行程所在的整點,前面沒行程的空檔省略
   //  · 完全沒有行程時,預設顯示 06:00–23:00
   let lo = 6 * 60, hi = 23 * 60;
   const omit = []; // 預設省略的區段 [起, 迄]
   if (items.length) {
-    const H = 60, early = items.filter(x => x.s.from < 6 * H), main = items.filter(x => x.s.to > 6 * H);
-    let eLo = null, eHi = null, mLo = null, mHi = null;
-    if (early.length) {
-      eLo = Math.floor(Math.min(...early.map(x => x.s.from)) / H) * H;
-      eHi = Math.min(6 * H, Math.ceil(Math.max(...early.map(x => x.s.to)) / H) * H);
-    }
+    const H = 60;
+    const early = items.filter(x => x.s.from < 6 * H);
+    const late = items.filter(x => x.s.from >= 22 * H);
+    const main = items.filter(x => x.s.to > 6 * H && x.s.from < 22 * H);
+    const blocks = [];
+    if (early.length) blocks.push([Math.floor(Math.min(...early.map(x => x.s.from)) / H) * H, Math.min(6 * H, Math.ceil(Math.max(...early.map(x => x.s.to)) / H) * H)]);
     if (main.length) {
-      mLo = Math.floor(Math.min(...main.map(x => Math.max(x.s.from, 6 * H))) / H) * H;
-      mHi = Math.ceil(Math.max(...main.map(x => x.s.to)) / H) * H;
-      if (mHi - mLo < 4 * H) mHi = Math.min(24 * H, mLo + 4 * H); // 至少留 4 小時,才有地方點選新增
-      if (mHi - mLo < 4 * H) mLo = mHi - 4 * H;
+      let mLo = Math.floor(Math.min(...main.map(x => Math.max(x.s.from, 6 * H))) / H) * H;
+      let mHi = Math.min(24 * H, Math.ceil(Math.max(...main.map(x => x.s.to)) / H) * H);
+      if (mHi - mLo < 4 * H) { mHi = Math.min(24 * H, mLo + 4 * H); if (mHi - mLo < 4 * H) mLo = mHi - 4 * H; } // 至少留 4 小時,才有地方點選新增
+      blocks.push([mLo, mHi]);
     }
-    if (eLo !== null && mLo !== null) { lo = eLo; hi = mHi; if (mLo > eHi) omit.push([eHi, mLo]); }
-    else if (eLo !== null) { lo = eLo; hi = Math.max(eHi, eLo + 4 * H); }
-    else { lo = mLo; hi = mHi; }
+    if (late.length) blocks.push([Math.floor(Math.min(...late.map(x => x.s.from)) / H) * H, Math.min(24 * H, Math.ceil(Math.max(...late.map(x => x.s.to)) / H) * H)]);
+    blocks.sort((p, q) => p[0] - q[0]);
+    const merged = [];
+    for (const b of blocks) {
+      const last = merged[merged.length - 1];
+      if (last && b[0] <= last[1]) last[1] = Math.max(last[1], b[1]);
+      else { if (last) omit.push([last[1], b[0]]); merged.push(b.slice()); }
+    }
+    lo = merged[0][0]; hi = merged[merged.length - 1][1];
+    if (hi - lo < 4 * H) { hi = Math.min(24 * H, lo + 4 * H); if (hi - lo < 4 * H) lo = hi - 4 * H; }
   }
   const px = HOUR_PX / 60, BRK = 26, keys = keyHours();
 
@@ -423,7 +431,7 @@ function renderGrid() {
           const rh = Math.max(2, pb - pt - 2);
           r.style.cssText = `top:${pt + 1}px;height:${rh}px;left:2px;width:calc(100% - 4px)`;
           if (rh < 22) r.classList.add("tiny");
-          r.innerHTML = ""; // 課表上不再顯示「休息」字樣,功能照舊(點一下看詳情、長按新增)
+          r.innerHTML = rh >= 26 ? "<b>休息</b>" : ""; // 太小的格子不寫字,功能照舊(點一下看詳情、長按新增)
           bindPress(r, () => openCourse(null, { day: d, from, to: Math.min(to, from + 60) }), () => showInfo(pseudo, null, true));
           colOf[d].appendChild(r);
         }
@@ -1131,8 +1139,221 @@ renderWeeklyBadge();
 
 // ---------- 更新日誌(最近 10 次,濃縮成三段) ----------
 const CHANGELOG = [
-  "拖動與複製(v0.03.08–v0.04.05):行程方塊可以上下拖動改時間、左右拖動改星期(手機先按住約 0.25 秒);詳情視窗新增「複製」,會在同一時間再多一個可以拖動的行程。",
-  "時間軸(v0.03.09–v0.04.03):預設從有行程的整點裁切,凌晨與前後沒行程的整點會省略並用細條標示;休息時段、左側時間欄(更窄、靠左)和預設到 23 點也一併調整。",
-  "編輯與詳情(v0.03.07、v0.04.01–v0.04.06):時長快捷改成自己新增或清除;每個時段的地點與備註並排;詳情的總時長標紅;設定顯示版本與這份日誌;新手教學加上指示線;修正拖動遇到休息與省略區段的問題。",
+  "時間軸與休息(v0.04.03、v0.04.08):時間軸依有行程的時間裁切,凌晨、白天、深夜各成一塊,中間沒行程的空檔用細條省略(例如 6:00 沒行程就從 7:00 開始、晚上只剩 23:50 的行程就省略前面的空檔);「休息」字樣放回課表上;預設到 23 點,左側時間欄更窄。",
+  "拖動與複製(v0.04.05、v0.04.06):行程方塊可以上下拖動改時間、左右拖動改星期(手機先按住約 0.25 秒),修正拖過被省略的區段會卡住的問題;詳情視窗新增「複製」,同一時間再多一個行程可以拖動。",
+  "編輯、教學與匯入(v0.04.01、v0.04.02、v0.04.06–v0.04.08):每個時段有地點與備註、詳情的總時長標紅、設定顯示版本;新手教學加上指示線;新增更新日誌按鈕,以及從學校課表網址、檔案或貼上內容匯入課程名稱、時間、地點。",
 ];
 $("#changelog").innerHTML = CHANGELOG.map(t => `<p>${esc(t)}</p>`).join("");
+$("#btnChangelog").onclick = () => { $("#setDlg").close(); $("#logDlg").showModal(); };
+$("#btnLogClose").onclick = () => $("#logDlg").close();
+
+// ---------- 匯入學校課程(只取:課程名稱、時間、地點) ----------
+const IMP_ALIASES = {
+  name: ["name", "title", "coursename", "course", "subject", "summary", "cname", "課程名稱", "課名", "科目名稱", "科目", "課程", "名稱", "kcmc"],
+  room: ["room", "location", "classroom", "place", "venue", "loc", "地點", "教室", "上課地點", "上課教室", "jsmc"],
+  day: ["day", "weekday", "dayofweek", "wday", "星期", "週", "週次", "xq", "dow"],
+  start: ["start", "starttime", "begin", "begintime", "from", "開始", "開始時間", "kssj"],
+  end: ["end", "endtime", "to", "結束", "結束時間", "jssj"],
+  time: ["time", "times", "schedule", "period", "periods", "section", "sections", "時間", "上課時間", "節次", "時段", "sksj"],
+};
+const IMP_NESTED = ["slots", "sessions", "schedules", "meetings", "classtimes", "timeslots", "times"];
+const impKey = k => String(k).toLowerCase().replace(/[\s_\-]/g, "");
+function impPick(obj, field) {
+  const al = IMP_ALIASES[field].map(impKey);
+  for (const k of Object.keys(obj)) if (al.includes(impKey(k))) { const v = obj[k]; if (v !== null && v !== undefined && v !== "" && typeof v !== "object") return v; }
+  return undefined;
+}
+const IMP_DAYCH = "一二三四五六日", IMP_EN = { mon: 0, tue: 1, wed: 2, thu: 3, fri: 4, sat: 5, sun: 6 };
+function impDay(v) {
+  if (typeof v === "number") return v === 0 ? 6 : (v >= 1 && v <= 7 ? v - 1 : NaN);
+  const s = String(v).trim();
+  if (/^\d+$/.test(s)) return impDay(+s);
+  let m = /[一二三四五六日天]/.exec(s); if (m) return m[0] === "天" ? 6 : IMP_DAYCH.indexOf(m[0]);
+  m = /(mon|tue|wed|thu|fri|sat|sun)/i.exec(s); if (m) return IMP_EN[m[1].toLowerCase()];
+  return NaN;
+}
+function impTod(v) {
+  const s = String(v).trim();
+  let m = /(\d{1,2}):(\d{2})/.exec(s); if (m) { const n = +m[1] * 60 + +m[2]; return n <= 1440 ? n : NaN; }
+  if (/^\d{3,4}$/.test(s)) return parseTimeInput(s);
+  return NaN;
+}
+function impPeriods(str) { // 3-4、34、3,4、N、A-B → [開始分鐘, 結束分鐘]
+  const labels = PERIODS.map(p => p.l), s = String(str).toUpperCase().replace(/\s+/g, "");
+  if (!s || s.length > 12) return null;
+  const rg = /^([0-9NA-D])[-~–至到]([0-9NA-D])$/.exec(s);
+  if (rg) { const p = labels.indexOf(rg[1]), q = labels.indexOf(rg[2]); if (p >= 0 && q >= p) return [PERIODS[p].s, PERIODS[q].e]; }
+  const ids = s.replace(/[,，、;；]/g, "").split("").map(ch => labels.indexOf(ch));
+  if (!ids.length || ids.some(i => i < 0)) return null;
+  return [PERIODS[Math.min(...ids)].s, PERIODS[Math.max(...ids)].e];
+}
+function impRest(rest) { // 「10:00-12:00」或「3-4」→ [from, to]
+  const t = /(\d{1,2}):?(\d{2})\s*[-~–至到]\s*(\d{1,2}):?(\d{2})/.exec(rest);
+  if (t) { const f = +t[1] * 60 + +t[2], e = +t[3] * 60 + +t[4]; if (e > f && e <= 1440) return [f, e]; }
+  return impPeriods(rest.replace(/[（）()節课課堂第]/g, ""));
+}
+function impTimeText(text) { // 例:「週二 10:00-12:00;四 3-4」→ [{day,from,to}]
+  const out = [], s = String(text);
+  const re = /(?:(?:星期|週|周)([一二三四五六日])|(?<![\u4e00-\u9fff])[（(]?([一二三四五六日])[）)]?)([^一二三四五六日]*)/g;
+  let m, found = false;
+  while ((m = re.exec(s))) {
+    found = true;
+    const day = IMP_DAYCH.indexOf(m[1] || m[2]), r = impRest(m[3].trim());
+    if (r) out.push({ day, from: r[0], to: r[1] });
+  }
+  if (!found) {
+    const re2 = /(mon|tue|wed|thu|fri|sat|sun)[a-z]*\.?\s*([^A-Za-z]*)/gi;
+    while ((m = re2.exec(s))) { const r = impRest(m[2].trim()); if (r) out.push({ day: IMP_EN[m[1].toLowerCase()], from: r[0], to: r[1] }); }
+  }
+  return out;
+}
+function impRowSlots(row, parentRoom) {
+  const room = impPick(row, "room") ?? parentRoom, out = [];
+  const nested = Object.keys(row).find(k => IMP_NESTED.includes(impKey(k)) && Array.isArray(row[k]) && row[k].some(x => x && typeof x === "object"));
+  if (nested) { row[nested].forEach(sub => { if (sub && typeof sub === "object") out.push(...impRowSlots(sub, room)); }); return out; }
+  const dv = impPick(row, "day"), sv = impPick(row, "start"), ev = impPick(row, "end"), tv = impPick(row, "time");
+  if (dv !== undefined && sv !== undefined && ev !== undefined) {
+    const day = impDay(dv), f = impTod(sv), e = impTod(ev);
+    if (!Number.isNaN(day) && !Number.isNaN(f) && !Number.isNaN(e) && e > f) out.push({ day, from: f, to: e, room });
+  } else {
+    const texts = Array.isArray(row[Object.keys(row).find(k => IMP_ALIASES.time.map(impKey).includes(impKey(k)))]) ? row[Object.keys(row).find(k => IMP_ALIASES.time.map(impKey).includes(impKey(k)))] : (tv !== undefined ? [tv] : []);
+    for (const t of texts) {
+      let sl = impTimeText(t);
+      if (!sl.length && dv !== undefined) { const day = impDay(dv), r = impRest(String(t)); if (!Number.isNaN(day) && r) sl = [{ day, from: r[0], to: r[1] }]; }
+      sl.forEach(x => out.push({ ...x, room }));
+    }
+  }
+  return out;
+}
+function impFindRows(data, depth = 0) { // 在 JSON 裡找出「物件陣列」
+  if (Array.isArray(data)) return data.some(x => x && typeof x === "object" && !Array.isArray(x)) ? data.filter(x => x && typeof x === "object") : [];
+  if (data && typeof data === "object" && depth < 3) {
+    for (const k of Object.keys(data)) { const r = impFindRows(data[k], depth + 1); if (r.length) return r; }
+  }
+  return [];
+}
+function impCSV(text) {
+  const delim = /\t/.test(text.split(/\r?\n/)[0]) ? "\t" : (text.split(/\r?\n/)[0].split(";").length > text.split(/\r?\n/)[0].split(",").length ? ";" : ",");
+  const rows = []; let cur = [], cell = "", q = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (q) { if (ch === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += ch; }
+    else if (ch === '"') q = true;
+    else if (ch === delim) { cur.push(cell); cell = ""; }
+    else if (ch === "\n") { cur.push(cell.replace(/\r$/, "")); rows.push(cur); cur = []; cell = ""; }
+    else cell += ch;
+  }
+  if (cell || cur.length) { cur.push(cell.replace(/\r$/, "")); rows.push(cur); }
+  const head = (rows.shift() || []).map(s => s.trim());
+  return rows.filter(r => r.some(x => x.trim())).map(r => Object.fromEntries(head.map((k, i) => [k, (r[i] ?? "").trim()])));
+}
+function impICS(text) {
+  const lines = text.replace(/\r?\n[ \t]/g, "").split(/\r?\n/), evs = []; let ev = null;
+  for (const ln of lines) {
+    if (/^BEGIN:VEVENT/i.test(ln)) ev = {};
+    else if (/^END:VEVENT/i.test(ln)) { if (ev) evs.push(ev); ev = null; }
+    else if (ev) { const i = ln.indexOf(":"); if (i > 0) ev[ln.slice(0, i).split(";")[0].toUpperCase()] = ln.slice(i + 1).replace(/\\,/g, ",").replace(/\\n/gi, " "); }
+  }
+  const BY = { MO: 0, TU: 1, WE: 2, TH: 3, FR: 4, SA: 5, SU: 6 };
+  return evs.map(e => {
+    const p = v => { const m = /(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2}))?/.exec(v || ""); return m ? { date: new Date(+m[1], +m[2] - 1, +m[3]), min: m[4] ? +m[4] * 60 + +m[5] : null } : null; };
+    const s = p(e.DTSTART), en = p(e.DTEND);
+    if (!s || s.min === null || !en || en.min === null) return null;
+    const by = /BYDAY=([^;]+)/i.exec(e.RRULE || "");
+    const days = by ? by[1].split(",").map(x => BY[x.replace(/[^A-Z]/gi, "").toUpperCase()]).filter(x => x !== undefined) : [dayOfDate(s.date)];
+    return { name: e.SUMMARY, room: e.LOCATION, slots: days.map(day => ({ day, from: s.min, to: en.min })) };
+  }).filter(x => x && x.name);
+}
+function impParse(text) {
+  const t = String(text || "").trim();
+  if (!t) return [];
+  let rows;
+  if (/BEGIN:VCALENDAR|BEGIN:VEVENT/i.test(t)) rows = impICS(t).map(r => ({ __done: true, ...r }));
+  else if (/^[\[{]/.test(t)) { try { rows = impFindRows(JSON.parse(t)); } catch { throw new Error("JSON 格式不對,請確認內容完整"); } }
+  else rows = impCSV(t);
+  const map = new Map();
+  for (const row of rows) {
+    const name = String(row.__done ? row.name : (impPick(row, "name") ?? "")).trim();
+    if (!name) continue;
+    const room = String(row.__done ? (row.room ?? "") : (impPick(row, "room") ?? "")).trim();
+    const slots = row.__done ? row.slots : impRowSlots(row, room || undefined);
+    if (!slots.length) continue;
+    const cur = map.get(name) || { name, room, slots: [] };
+    if (!cur.room && room) cur.room = room;
+    for (const s of slots) {
+      if (cur.slots.some(x => x.day === s.day && x.from === s.from && x.to === s.to)) continue;
+      const r = (s.room ? String(s.room).trim() : "");
+      cur.slots.push({ day: s.day, from: s.from, to: s.to, ...(r && r !== cur.room ? { room: r } : {}) });
+    }
+    map.set(name, cur);
+  }
+  return [...map.values()];
+}
+const impFmtSlot = s => `週${DAYS[s.day]} ${fmt(s.from)}–${fmt(s.to)}${s.room ? " · " + s.room : ""}`;
+function impShow(items) {
+  IMP.items = items;
+  $("#impPreview").hidden = !items.length;
+  $("#btnImpDo").disabled = !items.length;
+  $("#impCount").textContent = `${items.length} 門課`;
+  $("#impList").innerHTML = items.map((c, i) => `<label class="check"><input type="checkbox" data-i="${i}" checked><span><b>${esc(c.name)}</b>${c.room ? ` <small class="muted">${esc(c.room)}</small>` : ""}<br><small class="muted">${c.slots.map(s => esc(impFmtSlot(s))).join("、")}</small></span></label>`).join("");
+  $("#impSheet").value = $("#impSheet").value || state.semester;
+}
+const IMP = { items: [] };
+function impRun(text) {
+  $("#impMsg").textContent = "";
+  try {
+    const items = impParse(text);
+    if (!items.length) { impShow([]); $("#impMsg").textContent = "沒有找到可以匯入的課程。請確認內容有課程名稱和時間(星期+時間或節次)。"; return; }
+    impShow(items);
+  } catch (err) { impShow([]); $("#impMsg").textContent = err.message; }
+}
+$("#btnImport").onclick = () => { $("#setDlg").close(); $("#impSheet").value = state.semester; $("#impMsg").textContent = ""; impShow([]); $("#impDlg").showModal(); };
+$("#btnImpClose").onclick = () => $("#impDlg").close();
+$("#btnImpParse").onclick = () => impRun($("#impText").value);
+$("#impFile").onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  if (f.size > 2 * 1024 * 1024) { $("#impMsg").textContent = "檔案太大(超過 2 MB)"; return; }
+  const rd = new FileReader(); rd.onload = () => { $("#impText").value = String(rd.result); impRun(String(rd.result)); }; rd.readAsText(f);
+};
+$("#btnImpFetch").onclick = async () => {
+  const url = $("#impUrl").value.trim();
+  if (!/^https?:\/\//i.test(url)) { $("#impMsg").textContent = "請輸入以 http:// 或 https:// 開頭的網址"; return; }
+  $("#impMsg").textContent = "抓取中…";
+  try {
+    const res = await fetch(url, { headers: { Accept: "application/json, text/csv, text/calendar, */*" } });
+    if (!res.ok) throw new Error("伺服器回應 " + res.status);
+    const text = await res.text();
+    $("#impText").value = text.slice(0, 200000); impRun(text);
+  } catch (err) {
+    $("#impMsg").textContent = "抓不到資料(" + (err.message || "網路錯誤") + ")。常見原因是學校網站不允許跨網站讀取或需要登入,請改用方式二:把內容下載或複製後貼上。";
+  }
+};
+$("#btnImpExample").onclick = () => {
+  $("#impText").value = JSON.stringify([
+    { name: "微積分", day: "二", start: "10:10", end: "12:00", room: "六教525" },
+    { name: "經濟學", time: "週三 3-4", location: "六教527" },
+    { name: "英文", slots: [{ day: 1, start: "08:10", end: "09:00" }, { day: 4, start: "08:10", end: "09:00" }], room: "三教309" },
+  ], null, 2);
+  $("#impMsg").textContent = "這是範例格式,按「解析」看看效果。";
+};
+$("#btnImpDo").onclick = async () => {
+  const target = ($("#impSheet").value || "").trim() || state.semester;
+  const pick = [...$("#impList").querySelectorAll("input:checked")].map(i => IMP.items[+i.dataset.i]);
+  if (!pick.length) return toast("請至少勾選一門課");
+  if (isLocked(target)) return toast("那個日期簿已鎖定,請換一個或先解除鎖定");
+  const exist = state.courses.filter(c => c.semester === target);
+  let skipped = 0, k = exist.length;
+  const fresh = [];
+  for (const it of pick) {
+    const same = exist.some(c => c.name === it.name && c.slots.length === it.slots.length && c.slots.every(s => it.slots.some(x => x.day === s.day && x.from === s.from && x.to === s.to)));
+    if (same) { skipped++; continue; }
+    fresh.push({ id: uid(), semester: target, name: it.name.slice(0, 40), room: (it.room || "").slice(0, 30), credits: 0, color: PALETTE[k++ % PALETTE.length], slots: it.slots.map(s => ({ day: s.day, from: s.from, to: s.to, ...(s.room ? { room: String(s.room).slice(0, 30) } : {}) })) });
+  }
+  if (!fresh.length) return toast(`都已經匯入過了(略過 ${skipped} 門重複)`);
+  state.courses.push(...fresh);
+  state.semester = target;
+  if (!state.semesters.includes(target)) state.semesters.unshift(target);
+  $("#impDlg").close(); persistMeta(); renderAll();
+  toast(`已匯入 ${fresh.length} 門課${skipped ? `,略過 ${skipped} 門重複` : ""}`);
+  try { await store.upsertMany(fresh); } catch (err) { toast("匯入失敗:" + err.message); await reload(); }
+};

@@ -200,3 +200,14 @@ select:disabled{opacity:.45}
 .changelog p{margin:0 0 6px}
 .tutLines{position:fixed;left:0;top:0;width:100vw;height:100vh;pointer-events:none;overflow:visible}
 #tutDlg .info{position:relative}
+.verLine .inl{padding:0;font-size:12px;vertical-align:baseline}
+.impRow{display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:4px}
+.impRow input,#impDlg textarea,#impDlg input[type=file]{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px;color:var(--text);width:100%;min-width:0}
+#impDlg textarea{display:block;margin:6px 0;font:inherit;resize:vertical}
+#impDlg .impNote,#impDlg .impHelp{margin:0 0 8px;font-size:12px}
+#impDlg .calList label.check{align-items:flex-start}
+#impDlg .calList label.check input{margin-top:3px}
+#impDlg .msg{color:#ffb4b4;font-size:13px;margin:8px 0 0}
+#btnImpDo:disabled{opacity:.4}
+#logDlg .changelog{font-size:14px;line-height:1.6;color:var(--text)}
+#logDlg .changelog p{margin:0 0 10px}
