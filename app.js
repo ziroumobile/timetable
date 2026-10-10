@@ -255,8 +255,12 @@ function renderMonth() {
   let html = "";
   for (let i = 0; i < rows * 7; i++) {
     const d = addDays(start, i), di = dayOfDate(d);
-    const colors = off.has(di) ? [] : [...new Set(cur.filter(c => c.slots.some(s => s.day === di && !isGhost(c, s))).map(c => c.color || PALETTE[0]))].slice(0, 4);
-    html += `<button type="button" class="mc ${d.getMonth() !== m ? "out" : ""} ${sameDay(d, today) ? "today" : ""} ${off.has(di) ? "offd" : ""}" data-t="${d.getTime()}"><span>${d.getDate()}</span><i>${colors.map(k => `<u style="background:${k}"></u>`).join("")}</i></button>`;
+    const day = off.has(di) ? [] : cur.map(c => {
+      const ss = c.slots.filter(s => s.day === di && !isGhost(c, s));
+      return ss.length ? { name: c.name, color: c.color || PALETTE[0], from: Math.min(...ss.map(s => s.from)) } : null;
+    }).filter(Boolean).sort((p, q) => p.from - q.from);
+    const shown = day.slice(0, 4), more = day.length - shown.length;
+    html += `<button type="button" class="mc ${d.getMonth() !== m ? "out" : ""} ${sameDay(d, today) ? "today" : ""} ${off.has(di) ? "offd" : ""}" data-t="${d.getTime()}"><span>${d.getDate()}</span><div class="nm">${shown.map(x => `<em style="background:${x.color};border-color:${shade(x.color, -0.35)}">${esc(x.name)}</em>`).join("")}${more > 0 ? `<small>+${more}</small>` : ""}</div></button>`;
   }
   $("#mGrid").innerHTML = html;
   $("#mGrid").querySelectorAll(".mc").forEach(el => { el.onclick = () => { state.anchor = new Date(+el.dataset.t); state.view = "week"; renderMain(); window.scrollTo(0, 0); }; });
@@ -460,7 +464,7 @@ function showInfo(c, slot, rest) {
   $("#infoNote").textContent = c.note || "";
   $("#infoTimes").innerHTML = c.slots.slice().sort((p, q) => p.day - q.day || p.from - q.from)
     .map(s => `<li>週${DAYS[s.day]} ${fmt(s.from)}–${fmt(s.to)}${s.room && s.room !== c.room ? ` <span class="muted">· ${esc(s.room)}</span>` : ""}</li>`).join("");
-  $("#infoTotal").textContent = fmtDur(c.slots.reduce((t, s) => t + Math.max(0, s.to - s.from), 0));
+  $("#infoTotal").textContent = fmtDur(slot ? Math.max(0, slot.to - slot.from) : c.slots.reduce((t, s) => t + Math.max(0, s.to - s.from), 0));
   $("#btnInfoEdit").onclick = () => { $("#infoDlg").close(); openCourse(c); };
   const gb = $("#btnInfoGhost");
   gb.hidden = !slot;
