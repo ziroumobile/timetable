@@ -218,7 +218,7 @@ function buildAxis() {
   const lines = [];
   segs.forEach(g => { for (let hh = Math.ceil(g.m0 / 60); hh <= Math.floor(g.m1 / 60); hh++) lines.push({ y: g.y0 + (hh * 60 - g.m0) * px, label: String(hh), key: keys.has(hh) }); });
   return {
-    nDays, order, items, lines, breaks, total,
+    nDays, order, items, lines, breaks, total, lo, hi,
     yRange: s => [yOf(s.from), yOf(s.to)],
     toTime: yy => {
       const g = segs.find(g => yy >= g.y0 && yy < g.y0 + (g.m1 - g.m0) * px);
@@ -411,7 +411,8 @@ function renderGrid() {
     const room = it.s.room || it.c.room;
     el.innerHTML = `<b>${esc(it.c.name)}</b>${room ? `<small>${esc(room)}</small>` : ""}`;
     // 短按看詳情,長按編輯
-    bindPress(el, () => isLocked(it.c.semester) ? showInfo(it.c, it.s) : openCourse(it.c), () => showInfo(it.c, it.s));
+    bindPress(el, () => isLocked(it.c.semester) ? showInfo(it.c, it.s) : openCourse(it.c), () => showInfo(it.c, it.s), 600);
+    if (!state.opt.period) enableDrag(el, it, ax);
     colOf[it.s.day].appendChild(el);
   }
   // 點空白新增
@@ -474,18 +475,63 @@ $("#btnSheetClear").onclick = async () => {
   catch (err) { toast("清除失敗:" + err.message); await reload(); }
 };
 
+// ---------- 同一天上下拖動調整時間 ----------
+// 滑鼠:按住直接拖。手機:按住約 0.25 秒(會震動一下、方塊浮起)再上下拖;沒拖就繼續按會進入編輯
+function enableDrag(el, it, ax) {
+  const PX_MIN = HOUR_PX / 60, dur = it.s.to - it.s.from;
+  let mode = null, timer = null, y0 = 0, startFrom = it.s.from, newFrom = it.s.from, id = null;
+  const reset = () => { clearTimeout(timer); timer = null; mode = null; el.classList.remove("lift", "dragging"); el.removeAttribute("data-time"); };
+  el.addEventListener("pointerdown", e => {
+    if (e.button !== 0 && e.pointerType === "mouse") return;
+    y0 = e.clientY; startFrom = newFrom = it.s.from; id = e.pointerId;
+    if (e.pointerType === "mouse") { mode = "ready"; return; }
+    timer = setTimeout(() => { mode = "ready"; el.classList.add("lift"); navigator.vibrate?.(10); }, 250);
+  });
+  el.addEventListener("touchmove", e => { if (mode) e.preventDefault(); }, { passive: false });
+  el.addEventListener("pointermove", e => {
+    const dy = e.clientY - y0;
+    if (!mode) { if (timer && Math.abs(dy) > 8) { clearTimeout(timer); timer = null; } return; } // 手機:還沒浮起就移動 = 在捲動頁面
+    if (mode === "ready") {
+      if (Math.abs(dy) < (e.pointerType === "mouse" ? 4 : 6)) return;
+      mode = "drag"; el._cancelPress?.(); el._suppress = true;
+      try { el.setPointerCapture(id); } catch {}
+      el.classList.add("dragging", "lift");
+    }
+    const lo = ax.lo ?? 0, hi = ax.hi ?? 1440;
+    newFrom = Math.round((startFrom + dy / PX_MIN) / 5) * 5;
+    newFrom = Math.max(lo, Math.min(hi - dur, newFrom));
+    el.style.top = (ax.yRange({ from: newFrom, to: newFrom + dur })[0] + 2) + "px";
+    el.dataset.time = `${fmt(newFrom)}–${fmt(newFrom + dur)}`;
+  });
+  const finish = async cancel => {
+    const was = mode, moved = newFrom !== startFrom;
+    reset();
+    if (was !== "drag") return;
+    if (cancel || !moved) { renderMain(); return; }
+    if (isLocked(it.c.semester)) { toast("這個日期簿已鎖定,先解除鎖定才能移動"); renderMain(); return; }
+    const oldKey = slotKey(it.c, it.s), ghost = isGhost(it.c, it.s);
+    it.s.from = newFrom; it.s.to = newFrom + dur;
+    if (ghost) { const g = new Set(state.opt.ghost || []); g.delete(oldKey); g.add(slotKey(it.c, it.s)); state.opt.ghost = [...g]; persistMeta(); }
+    renderMain(); toast(`已移到 ${fmt(newFrom)}–${fmt(newFrom + dur)}`);
+    try { await store.upsert(it.c); } catch (err) { toast("儲存失敗:" + err.message); await reload(); }
+  };
+  el.addEventListener("pointerup", () => finish(false));
+  el.addEventListener("pointercancel", () => finish(true));
+}
+
 // ---------- 長按看詳情 ----------
-function bindPress(el, onLong, onTap) {
+function bindPress(el, onLong, onTap, delay = 450) {
   let timer = null, fired = false, x0 = 0, y0 = 0;
   const cancel = () => { clearTimeout(timer); timer = null; };
   el.onpointerdown = e => {
     fired = false; x0 = e.clientX; y0 = e.clientY;
-    timer = setTimeout(() => { fired = true; timer = null; navigator.vibrate?.(15); onLong(); }, 450);
+    timer = setTimeout(() => { fired = true; timer = null; navigator.vibrate?.(15); onLong(); }, delay);
   };
   el.onpointermove = e => { if (timer && Math.hypot(e.clientX - x0, e.clientY - y0) > 8) cancel(); };
   el.onpointerup = el.onpointerleave = el.onpointercancel = cancel;
   el.oncontextmenu = e => e.preventDefault();
-  el.onclick = e => { e.stopPropagation(); if (fired) { fired = false; return; } onTap(); };
+  el._cancelPress = cancel;
+  el.onclick = e => { e.stopPropagation(); if (el._suppress) { el._suppress = false; return; } if (fired) { fired = false; return; } onTap(); };
 }
 // 單節課隱形(例如這一節停課/請假):只淡化那一個時段,不影響同一門課的其他時段
 const slotKey = (c, s) => `${c.id}|${s.day}|${s.from}|${s.to}`;
