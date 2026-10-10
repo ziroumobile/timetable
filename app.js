@@ -423,7 +423,7 @@ function renderGrid() {
           const rh = Math.max(2, pb - pt - 2);
           r.style.cssText = `top:${pt + 1}px;height:${rh}px;left:2px;width:calc(100% - 4px)`;
           if (rh < 22) r.classList.add("tiny");
-          r.innerHTML = rh >= 26 ? "<b>休息</b>" : ""; // 太小的格子不寫字,功能照舊(長按看詳情、點一下新增)
+          r.innerHTML = ""; // 課表上不再顯示「休息」字樣,功能照舊(點一下看詳情、長按新增)
           bindPress(r, () => openCourse(null, { day: d, from, to: Math.min(to, from + 60) }), () => showInfo(pseudo, null, true));
           colOf[d].appendChild(r);
         }
@@ -915,9 +915,8 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catc
 
 // ---------- 新手教學 ----------
 const TUT = [
-  { t: "歡迎使用行程表 👋", pt: ["#btnAdd", "#btnMenu"], d: "點空白格或右下角的 ＋ 就能新增行程(左上角 ☰ 可以切換行事曆),點方塊看詳情,長按方塊才是編輯。一個行程可以有多個時段,例如週二和週四都有。" },
+  { t: "歡迎使用行程表 👋", pt: ["#btnAdd", "#btnMenu"], d: "點空白格或右下角的 ＋ 就能新增行程(左上角 ☰ 可以切換行事曆),點方塊看詳情,長按方塊才是編輯。一個行程可以有多個時段。" },
   { t: "短按看詳情、長按編輯", pt: [".course:not(.rest)", "#body"], d: "點一下行程方塊,會顯示完整的名稱、地點、所有上課時間和備註。按住約半秒才會進入編輯。詳情視窗裡也有「編輯」按鈕。" },
-  { t: "常用詞", d: "在「名稱」「地點」輸入條下面按 ＋,可以把目前輸入的字存成常用詞。之後點一下標籤就自動填入,按 ✕ 可移除。" },
   { t: "補假 / 停課", pt: ["#days .dh"], d: "點上方的星期標題(一、二、三…),那一天的行程會整天變半透明;再點一次就恢復。" },
 ];
 let tutI = 0;
