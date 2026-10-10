@@ -498,7 +498,7 @@ function showInfo(c, slot, rest) {
   $("#infoNoteBox").hidden = !c.note;
   $("#infoNote").textContent = c.note || "";
   $("#infoTimes").innerHTML = c.slots.slice().sort((p, q) => p.day - q.day || p.from - q.from)
-    .map(s => `<li>週${DAYS[s.day]} ${fmt(s.from)}–${fmt(s.to)}${s.room && s.room !== c.room ? ` <span class="muted">· ${esc(s.room)}</span>` : ""}</li>`).join("");
+    .map(s => `<li${slot && s.day === slot.day && s.from === slot.from && s.to === slot.to ? ' class="cur"' : ""}>週${DAYS[s.day]} ${fmt(s.from)}–${fmt(s.to)}${s.room && s.room !== c.room ? ` <span class="muted">· ${esc(s.room)}</span>` : ""}${slot && s.day === slot.day && s.from === slot.from && s.to === slot.to ? " <b class=\"curTag\">‹ 這一節</b>" : ""}</li>`).join("");
   $("#infoTotal").textContent = fmtDur(slot ? Math.max(0, slot.to - slot.from) : c.slots.reduce((t, s) => t + Math.max(0, s.to - s.from), 0));
   $("#btnInfoEdit").onclick = () => { $("#infoDlg").close(); openCourse(c); };
   const gb = $("#btnInfoGhost");
