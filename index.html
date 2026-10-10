@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="行程">
-<link rel="stylesheet" href="style.css?v=48">
+<link rel="stylesheet" href="style.css?v=49">
 </head>
 <body>
 <header>
@@ -193,6 +193,7 @@
   <div class="info">
     <h2>匯入學校課程</h2>
     <p class="muted impHelp">只會匯入「課程名稱、時間、地點」。資料都在你的瀏覽器裡解析,不會傳到別處。</p>
+    <p class="muted impHelp">台科大的課程資料(欄位有 CourseName、ClassRoomNo、Node,例如 Node 是 T3,T4)也可以直接貼上。節次時間依常見節次表換算,請在預覽核對。</p>
     <h3>方式一:學校的課表網址(API)</h3>
     <div class="impRow"><input id="impUrl" type="url" inputmode="url" placeholder="https://…(回傳 JSON 的網址)"><button type="button" id="btnImpFetch" class="chip">抓取</button></div>
     <p class="muted impNote">網址要允許跨網站讀取、且不需要登入,否則請用方式二。</p>
@@ -260,7 +261,7 @@
 <div id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="config.js?v=48"></script>
-<script src="app.js?v=48"></script>
+<script src="config.js?v=49"></script>
+<script src="app.js?v=49"></script>
 </body>
 </html>

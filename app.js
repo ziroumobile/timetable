@@ -1141,7 +1141,7 @@ renderWeeklyBadge();
 const CHANGELOG = [
   "時間軸與休息(v0.04.03、v0.04.08):時間軸依有行程的時間裁切,凌晨、白天、深夜各成一塊,中間沒行程的空檔用細條省略(例如 6:00 沒行程就從 7:00 開始、晚上只剩 23:50 的行程就省略前面的空檔);「休息」字樣放回課表上;預設到 23 點,左側時間欄更窄。",
   "拖動與複製(v0.04.05、v0.04.06):行程方塊可以上下拖動改時間、左右拖動改星期(手機先按住約 0.25 秒),修正拖過被省略的區段會卡住的問題;詳情視窗新增「複製」,同一時間再多一個行程可以拖動。",
-  "編輯、教學與匯入(v0.04.01、v0.04.02、v0.04.06–v0.04.08):每個時段有地點與備註、詳情的總時長標紅、設定顯示版本;新手教學加上指示線;新增更新日誌按鈕,以及從學校課表網址、檔案或貼上內容匯入課程名稱、時間、地點。",
+  "編輯、教學與匯入(v0.04.01、v0.04.02、v0.04.06–v0.04.09):每個時段有地點與備註、詳情的總時長標紅、設定顯示版本;新手教學加上指示線;新增更新日誌按鈕,以及從學校課表網址、檔案或貼上內容匯入課程名稱、時間、地點(v0.04.09 起可讀台科大課程資料的節次格式)。",
 ];
 $("#changelog").innerHTML = CHANGELOG.map(t => `<p>${esc(t)}</p>`).join("");
 $("#btnChangelog").onclick = () => { $("#setDlg").close(); $("#logDlg").showModal(); };
@@ -1150,11 +1150,11 @@ $("#btnLogClose").onclick = () => $("#logDlg").close();
 // ---------- 匯入學校課程(只取:課程名稱、時間、地點) ----------
 const IMP_ALIASES = {
   name: ["name", "title", "coursename", "course", "subject", "summary", "cname", "課程名稱", "課名", "科目名稱", "科目", "課程", "名稱", "kcmc"],
-  room: ["room", "location", "classroom", "place", "venue", "loc", "地點", "教室", "上課地點", "上課教室", "jsmc"],
+  room: ["room", "location", "classroom", "classroomno", "place", "venue", "loc", "地點", "教室", "上課地點", "上課教室", "jsmc"],
   day: ["day", "weekday", "dayofweek", "wday", "星期", "週", "週次", "xq", "dow"],
   start: ["start", "starttime", "begin", "begintime", "from", "開始", "開始時間", "kssj"],
   end: ["end", "endtime", "to", "結束", "結束時間", "jssj"],
-  time: ["time", "times", "schedule", "period", "periods", "section", "sections", "時間", "上課時間", "節次", "時段", "sksj"],
+  time: ["time", "times", "schedule", "period", "periods", "section", "sections", "node", "時間", "上課時間", "節次", "時段", "sksj"],
 };
 const IMP_NESTED = ["slots", "sessions", "schedules", "meetings", "classtimes", "timeslots", "times"];
 const impKey = k => String(k).toLowerCase().replace(/[\s_\-]/g, "");
@@ -1187,6 +1187,27 @@ function impPeriods(str) { // 3-4、34、3,4、N、A-B → [開始分鐘, 結束
   if (!ids.length || ids.some(i => i < 0)) return null;
   return [PERIODS[Math.min(...ids)].s, PERIODS[Math.max(...ids)].e];
 }
+// 台科大課程查詢的「Node」欄位:M1,M2,T3 … (M 一、T 二、W 三、R 四、F 五、S 六、U 日;節次 1–10、A–D)
+// 節次時間是依常見節次表換算,匯入前請在預覽核對
+const NTUST_P = { 1: [490, 540], 2: [550, 600], 3: [620, 670], 4: [680, 730], 5: [740, 790], 6: [800, 850], 7: [860, 910], 8: [930, 980], 9: [990, 1040], 10: [1050, 1100], A: [1105, 1155], B: [1160, 1210], C: [1215, 1265], D: [1270, 1320] };
+const NTUST_ORDER = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "A", "B", "C", "D"];
+function impNode(str) {
+  const toks = String(str).toUpperCase().split(/[,s;]+/).filter(Boolean), byDay = {};
+  for (const t of toks) {
+    const m = /^([MTWRFSU])(10|[1-9A-D])$/.exec(t);
+    if (!m) return [];
+    (byDay[m[1]] = byDay[m[1]] || []).push(NTUST_ORDER.indexOf(m[2]));
+  }
+  const out = [];
+  for (const [d, ids] of Object.entries(byDay)) {
+    ids.sort((p, q) => p - q);
+    let s = ids[0], prev = ids[0];
+    const flush = e => out.push({ day: "MTWRFSU".indexOf(d), from: NTUST_P[NTUST_ORDER[s]][0], to: NTUST_P[NTUST_ORDER[e]][1] });
+    for (const i of ids.slice(1)) { if (i !== prev + 1) { flush(prev); s = i; } prev = i; }
+    flush(prev);
+  }
+  return out;
+}
 function impRest(rest) { // 「10:00-12:00」或「3-4」→ [from, to]
   const t = /(\d{1,2}):?(\d{2})\s*[-~–至到]\s*(\d{1,2}):?(\d{2})/.exec(rest);
   if (t) { const f = +t[1] * 60 + +t[2], e = +t[3] * 60 + +t[4]; if (e > f && e <= 1440) return [f, e]; }
@@ -1218,7 +1239,8 @@ function impRowSlots(row, parentRoom) {
   } else {
     const texts = Array.isArray(row[Object.keys(row).find(k => IMP_ALIASES.time.map(impKey).includes(impKey(k)))]) ? row[Object.keys(row).find(k => IMP_ALIASES.time.map(impKey).includes(impKey(k)))] : (tv !== undefined ? [tv] : []);
     for (const t of texts) {
-      let sl = impTimeText(t);
+      let sl = impNode(t);
+      if (!sl.length) sl = impTimeText(t);
       if (!sl.length && dv !== undefined) { const day = impDay(dv), r = impRest(String(t)); if (!Number.isNaN(day) && r) sl = [{ day, from: r[0], to: r[1] }]; }
       sl.forEach(x => out.push({ ...x, room }));
     }
