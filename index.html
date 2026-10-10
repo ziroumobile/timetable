@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="行程">
-<link rel="stylesheet" href="style.css?v=32">
+<link rel="stylesheet" href="style.css?v=33">
 </head>
 <body>
 <header>
@@ -24,6 +24,7 @@
   </div>
   <h1 id="appTitle">行程</h1>
   <div class="spacer"></div>
+  <button id="btnWeekly" class="icon todoBtn" title="每週零碎事項" aria-label="每週零碎事項">🔁<span id="weeklyBadge" class="badge" hidden></span></button>
   <button id="btnTodo" class="icon todoBtn" title="公告 / 待辦事項" aria-label="公告">📋<span id="todoBadge" class="badge" hidden></span></button>
   <button id="btnSettings" class="icon" title="設定">⚙</button>
   <button id="btnAuth" class="chip" hidden>登入</button>
@@ -146,11 +147,32 @@
 <!-- 行事曆顯示哪些課表 dialog -->
 <dialog id="calDlg">
   <div class="info">
-    <h2>行事曆要顯示的課表</h2>
+    <h2>行事曆要顯示什麼</h2>
+    <h3>課表</h3>
     <label class="check"><input type="checkbox" id="calFollow"> 只顯示目前選的課表(預設)</label>
     <h3>或自己勾選</h3>
     <div id="calList" class="calList"></div>
-    <div class="actions"><button type="button" id="calAll" class="link">全選</button><div class="spacer"></div><button type="button" id="btnCalClose" class="primary">完成</button></div>
+    <button type="button" id="calAll" class="link">全選課表</button>
+    <h3>課堂</h3>
+    <div id="calCourses" class="calList"></div>
+    <div class="rowLinks"><button type="button" id="calCoursesAll" class="link">全部顯示</button><button type="button" id="calCoursesNone" class="link">全部隱藏</button></div>
+    <div class="actions"><div class="spacer"></div><button type="button" id="btnCalClose" class="primary">完成</button></div>
+  </div>
+</dialog>
+
+<!-- 每週零碎事項 dialog -->
+<dialog id="weeklyDlg">
+  <div class="info">
+    <h2>每週零碎事項</h2>
+    <p class="muted wkNote">很短、不需要排進課表的事(例如倒垃圾、繳費、整理房間)。不會顯示在課表上,每週一自動重新計算完成狀態。</p>
+    <form id="weeklyForm" class="todoAdd">
+      <input id="wkText" placeholder="新增每週要做的事" maxlength="60" required>
+      <div id="wkDays" class="dayPick" aria-label="哪幾天(不選 = 本週任何時間)"></div>
+      <button type="submit" class="primary">新增</button>
+    </form>
+    <p class="muted" id="wkInfo"></p>
+    <ul id="wkList" class="todoList"></ul>
+    <div class="actions"><div class="spacer"></div><button type="button" id="btnWeeklyClose" class="primary">關閉</button></div>
   </div>
 </dialog>
 
@@ -201,7 +223,7 @@
 <div id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="config.js?v=32"></script>
-<script src="app.js?v=32"></script>
+<script src="config.js?v=33"></script>
+<script src="app.js?v=33"></script>
 </body>
 </html>

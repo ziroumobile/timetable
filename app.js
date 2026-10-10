@@ -20,7 +20,7 @@ const state = {
   courses: [],
   semester: localStorage.getItem(LS.sem) || defaultSemester(),
   semesters: JSON.parse(localStorage.getItem(LS.sems) || "[]"),
-  opt: Object.assign({ weekend: true, sunFirst: false, rest: false, notifyOn: false, notifyLead: 0, calSheets: null, off: [], locked: [], ghost: [], night: false, period: false, keys: "7, 12, 18" }, JSON.parse(localStorage.getItem(LS.opt) || "{}")),
+  opt: Object.assign({ weekend: true, sunFirst: false, rest: false, notifyOn: false, notifyLead: 0, calSheets: null, calHidden: [], off: [], locked: [], ghost: [], night: false, period: false, keys: "7, 12, 18" }, JSON.parse(localStorage.getItem(LS.opt) || "{}")),
   user: null,
   view: "week",            // week = 每週課表(預設), month = 行事曆(從左上選單切換)
   anchor: new Date(),      // 目前選的日期(決定哪一週)
@@ -245,13 +245,25 @@ function renderWeekBar() {
 }
 // 行事曆要顯示哪些課表:null = 跟著目前選的課表(預設),否則用勾選的清單
 const calSheets = () => state.opt.calSheets ? state.opt.calSheets : [state.semester];
+function renderCalCourses() {
+  const sheets = calSheets(), hid = new Set(state.opt.calHidden || []);
+  const list = state.courses.filter(c => sheets.includes(c.semester)).sort((p, q) => p.semester.localeCompare(q.semester) || p.name.localeCompare(q.name, "zh-Hant"));
+  const multi = sheets.length > 1;
+  $("#calCourses").innerHTML = list.length ? list.map(c => `<label class="check"><input type="checkbox" value="${esc(c.id)}" ${hid.has(c.id) ? "" : "checked"}><i class="dot" style="background:${c.color || PALETTE[0]}"></i><span>${esc(c.name)}${multi ? ` <small class="muted">${esc(c.semester)}</small>` : ""}</span></label>`).join("") : '<div class="muted">這些課表裡還沒有課堂</div>';
+  $("#calCourses").querySelectorAll("input").forEach(i => { i.onchange = () => {
+    const s = new Set(state.opt.calHidden || []);
+    if (i.checked) s.delete(i.value); else s.add(i.value);
+    state.opt.calHidden = [...s]; persistMeta(); renderMonth();
+  }; });
+}
 function renderCalPicker() {
+  renderCalCourses();
   const follow = !state.opt.calSheets, chosen = new Set(calSheets());
   $("#calFollow").checked = follow;
   $("#calList").innerHTML = [...state.semesters].sort().map(s => `<label class="check${follow ? " dis" : ""}"><input type="checkbox" value="${esc(s)}" ${chosen.has(s) ? "checked" : ""} ${follow ? "disabled" : ""}> ${esc(s)}${isLocked(s) ? " 🔒" : ""}</label>`).join("");
   $("#calList").querySelectorAll("input").forEach(i => { i.onchange = () => {
     state.opt.calSheets = [...$("#calList").querySelectorAll("input:checked")].map(x => x.value);
-    persistMeta(); renderMonth();
+    persistMeta(); renderMonth(); renderCalCourses();
   }; });
 }
 $("#mSheets").onclick = () => { renderCalPicker(); $("#calDlg").showModal(); };
@@ -259,6 +271,8 @@ $("#calFollow").onchange = e => {
   state.opt.calSheets = e.target.checked ? null : [...calSheets()];
   persistMeta(); renderCalPicker(); renderMonth();
 };
+$("#calCoursesAll").onclick = () => { state.opt.calHidden = []; persistMeta(); renderCalCourses(); renderMonth(); };
+$("#calCoursesNone").onclick = () => { const ids = state.courses.filter(c => calSheets().includes(c.semester)).map(c => c.id); state.opt.calHidden = [...new Set([...(state.opt.calHidden || []), ...ids])]; persistMeta(); renderCalCourses(); renderMonth(); };
 $("#calAll").onclick = () => { state.opt.calSheets = [...state.semesters]; persistMeta(); renderCalPicker(); renderMonth(); };
 $("#btnCalClose").onclick = () => $("#calDlg").close();
 function renderMonth() {
@@ -269,8 +283,9 @@ function renderMonth() {
   const first = new Date(y, m, 1), start = weekStart(first);
   const rows = Math.ceil((Math.round((first - start) / 864e5) + new Date(y, m + 1, 0).getDate()) / 7);
   const sheets = calSheets();
-  const cur = state.courses.filter(c => sheets.includes(c.semester));
-  $("#mSheets").textContent = state.opt.calSheets ? `課表 ${sheets.length}` : "課表";
+  const hiddenC = new Set(state.opt.calHidden || []);
+  const cur = state.courses.filter(c => sheets.includes(c.semester) && !hiddenC.has(c.id));
+  $("#mSheets").textContent = (state.opt.calSheets || hiddenC.size) ? "篩選 ●" : "篩選";
   const off = new Set(state.opt.off || []), today = new Date();
   let html = "";
   for (let i = 0; i < rows * 7; i++) {
@@ -879,3 +894,63 @@ function checkNotify() {
 setInterval(checkNotify, 15000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) checkNotify(); });
 renderTodoBadge(); checkNotify();
+
+// ---------- 每週零碎事項(很短的事,不顯示在課表上;每週一自動重新計算完成狀態) ----------
+const WK_KEY = "tt.weekly", WK_DONE = "tt.weeklyDone";
+const weekly = () => { try { return JSON.parse(localStorage.getItem(WK_KEY) || "[]"); } catch { return []; } };
+const saveWeekly = l => { localStorage.setItem(WK_KEY, JSON.stringify(l)); renderWeeklyBadge(); };
+const weekKey = (d = new Date()) => { const m = addDays(d, -dayOfDate(d)); return `${m.getFullYear()}-${pad(m.getMonth() + 1)}-${pad(m.getDate())}`; };
+function weeklyDone() {
+  let all; try { all = JSON.parse(localStorage.getItem(WK_DONE) || "{}"); } catch { all = {}; }
+  const keys = Object.keys(all).sort();
+  keys.slice(0, Math.max(0, keys.length - 8)).forEach(k => delete all[k]); // 只留最近幾週
+  return all;
+}
+const doneThisWeek = () => new Set(weeklyDone()[weekKey()] || []);
+function setDone(id, on) {
+  const all = weeklyDone(), k = weekKey(), s = new Set(all[k] || []);
+  if (on) s.add(id); else s.delete(id);
+  all[k] = [...s]; localStorage.setItem(WK_DONE, JSON.stringify(all));
+}
+const relevantToday = w => !w.days?.length || w.days.includes(dayOfDate(new Date()));
+function renderWeeklyBadge() {
+  const done = doneThisWeek(), n = weekly().filter(w => relevantToday(w) && !done.has(w.id)).length, b = $("#weeklyBadge");
+  b.hidden = !n; b.textContent = n > 9 ? "9+" : n;
+}
+let wkDays = new Set();
+function renderWkDays() {
+  $("#wkDays").innerHTML = DAYS.map((d, i) => `<button type="button" class="${wkDays.has(i) ? "on" : ""}" data-d="${i}">${d}</button>`).join("");
+  $("#wkDays").querySelectorAll("button").forEach(b => { b.onclick = () => { const i = +b.dataset.d; if (wkDays.has(i)) wkDays.delete(i); else wkDays.add(i); renderWkDays(); }; });
+}
+function renderWeekly() {
+  const done = doneThisWeek(), today = dayOfDate(new Date());
+  const list = weekly().sort((p, q) => {
+    const ra = relevantToday(p) && p.days?.length ? 0 : 1, rb = relevantToday(q) && q.days?.length ? 0 : 1;
+    return (done.has(p.id) - done.has(q.id)) || (ra - rb) || ((p.days?.[0] ?? 9) - (q.days?.[0] ?? 9));
+  });
+  const s = weekStart(new Date()), e = addDays(s, 6), f = d => `${d.getMonth() + 1}/${d.getDate()}`;
+  const n = list.filter(w => done.has(w.id)).length;
+  $("#wkInfo").textContent = `本週 ${f(s)} – ${f(e)} · 已完成 ${n}/${list.length}`;
+  $("#wkList").innerHTML = list.length ? list.map(w => {
+    const label = w.days?.length ? "週" + [...w.days].sort((p, q) => p - q).map(i => DAYS[i]).join("、") : "本週任何時間";
+    const isToday = w.days?.includes(today);
+    return `<li class="${done.has(w.id) ? "done" : ""}" data-id="${w.id}"><input type="checkbox" ${done.has(w.id) ? "checked" : ""} aria-label="本週完成"><span class="tx">${esc(w.text)}<small class="${isToday ? "today" : ""}">${label}${isToday ? " · 今天" : ""}</small></span><button type="button" class="del" title="刪除">✕</button></li>`;
+  }).join("") : '<li class="empty">還沒有每週事項</li>';
+  $("#wkList").querySelectorAll("li[data-id]").forEach(li => {
+    li.querySelector("input").onchange = e => { setDone(li.dataset.id, e.target.checked); renderWeekly(); renderWeeklyBadge(); };
+    li.querySelector(".del").onclick = () => { saveWeekly(weekly().filter(x => x.id !== li.dataset.id)); renderWeekly(); };
+  });
+}
+$("#btnWeekly").onclick = () => { wkDays = new Set(); renderWkDays(); renderWeekly(); $("#weeklyDlg").showModal(); };
+$("#btnWeeklyClose").onclick = () => $("#weeklyDlg").close();
+$("#weeklyDlg").onclose = renderWeeklyBadge;
+$("#weeklyForm").onsubmit = e => {
+  e.preventDefault();
+  const text = $("#wkText").value.trim();
+  if (!text) return;
+  const l = weekly();
+  l.push({ id: uid(), text, days: [...wkDays].sort((p, q) => p - q) });
+  saveWeekly(l);
+  $("#wkText").value = ""; wkDays = new Set(); renderWkDays(); renderWeekly();
+};
+renderWeeklyBadge();

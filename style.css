@@ -166,3 +166,10 @@ select:disabled{opacity:.45}
 .calList label.check{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:0}
 .calList label.check.dis{opacity:.45}
 .mHead .chip+.chip{margin-left:6px}
+.calList .dot,.dot{display:inline-block;width:12px;height:12px;border-radius:50%;flex:none}
+.rowLinks{display:flex;gap:16px;margin-top:4px}
+.wkNote{margin:0 0 10px;font-size:13px}
+.dayPick{display:flex;gap:4px}
+.dayPick button{flex:1;padding:7px 0;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--text)}
+.dayPick button.on{background:var(--accent);color:#11141b;border-color:var(--accent);font-weight:600}
+.todoList .tx small.today{color:var(--accent)}
