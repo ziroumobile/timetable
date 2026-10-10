@@ -176,3 +176,5 @@ select:disabled{opacity:.45}
 .info li.cur{color:#ff6b6b;font-weight:700}
 .info li.cur .muted{color:#ff9a9a}
 .curTag{font-size:12px;font-weight:600;margin-left:4px}
+.slot .durs .dur.add{border-style:dashed;color:var(--accent);padding:4px 12px}
+.slot .durs .dur.mine{border-color:var(--accent)}

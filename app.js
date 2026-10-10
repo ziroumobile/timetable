@@ -527,6 +527,22 @@ const dlg = $("#courseDlg"), form = $("#courseForm");
 const periodOpts = sel => PERIODS.map((p, i) => `<option value="${i}" ${i === sel ? "selected" : ""}>${p.l === "N" ? "N 午休" : "第 " + p.l + " 節"}</option>`).join("");
 const dayOpts = sel => DAYS.map((d, i) => `<option value="${i}" ${i === sel ? "selected" : ""}>週${d}</option>`).join("");
 
+// 時長快捷:內建幾個,使用者可用 ＋ 自己加(存在瀏覽器裡),長按自訂的可以刪掉
+const BASE_DURS = [50, 60, 90, 120, 180];
+const customDurs = () => { try { return JSON.parse(localStorage.getItem("tt.durs") || "[]").filter(n => Number.isFinite(n) && n > 0 && n <= 1440); } catch { return []; } };
+const allDurs = () => [...new Set([...BASE_DURS, ...customDurs()])].sort((p, q) => p - q);
+const durLabel = m => m < 60 ? `${m} 分` : m % 60 ? `${Math.floor(m / 60)} 小時 ${m % 60} 分` : `${m / 60} 小時`;
+// 輸入:75、1:15、1h15、1.5h、1.5 小時 → 分鐘
+function parseDur(str) {
+  const s = String(str || "").trim().replace(/[０-９]/g, d => String.fromCharCode(d.charCodeAt(0) - 65248)).replace(/[：]/g, ":").replace(/\s+/g, "");
+  let r;
+  if ((r = /^(\d+):(\d{1,2})$/.exec(s))) return +r[1] * 60 + +r[2];
+  if ((r = /^(\d+)(?:h|時|小時)(\d{1,2})(?:m|分|分鐘)?$/i.exec(s))) return +r[1] * 60 + +r[2];
+  if ((r = /^(\d+(?:\.\d+)?)(?:h|時|小時)$/i.exec(s))) return Math.round(+r[1] * 60);
+  if ((r = /^(\d+)(?:m|分|分鐘)?$/i.exec(s))) return +r[1];
+  return NaN;
+}
+const refreshAllDurs = () => document.querySelectorAll("#slots .slot").forEach(r => r._durs?.());
 function addSlotRow(s) {
   const div = document.createElement("div");
   div.className = "slot";
@@ -544,14 +560,31 @@ function addSlotRow(s) {
       <input class="from" type="text" inputmode="numeric" autocomplete="off" placeholder="開始 0830" maxlength="6" value="${fmt(s.from)}" required>
       <input class="to" type="text" inputmode="numeric" autocomplete="off" placeholder="結束 0930" maxlength="6" value="${fmt(s.to)}" required>
       <button type="button" class="rm" title="移除">✕</button>${roomInput}
-      <div class="durs"><span>時長</span>${[[50, "50 分"], [60, "1 小時"], [90, "1.5 小時"], [120, "2 小時"], [180, "3 小時"]].map(([m, l]) => `<button type="button" class="dur" data-m="${m}">${l}</button>`).join("")}</div>`;
+      <div class="durs"></div>`;
     const f = div.querySelector(".from"), t = div.querySelector(".to");
     const norm = el => { const v = parseTimeInput(el.value); el.classList.toggle("bad", Number.isNaN(v)); if (!Number.isNaN(v)) el.value = fmt(v); return v; };
     let dur = Math.max(10, s.to - s.from);
     f.onfocus = t.onfocus = e => e.target.select();
     f.onchange = () => { const v = norm(f); if (!Number.isNaN(v)) { t.value = fmt(Math.min(1440, v + dur)); t.classList.remove("bad"); } };
     t.onchange = () => { const v = norm(t), fv = parseTimeInput(f.value); if (!Number.isNaN(v) && !Number.isNaN(fv) && v > fv) dur = v - fv; };
-    div.querySelectorAll(".dur").forEach(b => { b.onclick = () => { const fv = parseTimeInput(f.value); if (Number.isNaN(fv)) return toast("先輸入開始時間"); dur = +b.dataset.m; t.value = fmt(Math.min(1440, fv + dur)); t.classList.remove("bad"); }; });
+    div._durs = () => {
+      const box = div.querySelector(".durs"), mine = new Set(customDurs());
+      box.innerHTML = "<span>時長</span>" + allDurs().map(m => `<button type="button" class="dur${mine.has(m) && !BASE_DURS.includes(m) ? " mine" : ""}" data-m="${m}">${durLabel(m)}</button>`).join("") + '<button type="button" class="dur add" title="新增自訂時長">＋</button>';
+      box.querySelectorAll(".dur[data-m]").forEach(b => {
+        const apply = () => { const fv = parseTimeInput(f.value); if (Number.isNaN(fv)) return toast("先輸入開始時間"); dur = +b.dataset.m; t.value = fmt(Math.min(1440, fv + dur)); t.classList.remove("bad"); };
+        if (b.classList.contains("mine")) bindPress(b, () => { if (confirm(`刪除自訂時長「${b.textContent}」?`)) { localStorage.setItem("tt.durs", JSON.stringify(customDurs().filter(n => n !== +b.dataset.m))); refreshAllDurs(); } }, apply);
+        else b.onclick = apply;
+      });
+      box.querySelector(".add").onclick = () => {
+        const raw = prompt("新增自訂時長(例如 75、1:15、1.5h)", "");
+        if (raw === null) return;
+        const v = parseDur(raw);
+        if (Number.isNaN(v) || v <= 0 || v > 1440) return toast("時長格式不對,請輸入像 75、1:15 或 1.5h");
+        if (allDurs().includes(v)) return toast("這個時長已經有了");
+        localStorage.setItem("tt.durs", JSON.stringify([...customDurs(), v])); refreshAllDurs(); toast(`已新增 ${durLabel(v)}`);
+      };
+    };
+    div._durs();
   }
   div.querySelector(".rm").onclick = () => div.remove();
   $("#slots").appendChild(div);
