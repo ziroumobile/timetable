@@ -185,9 +185,9 @@ function buildAxis() {
     return { nDays, order, items, lines, total: y, yRange, toTime, yMin };
   }
 
-  // 預設顯示 06:00–22:00。凌晨(06:00 以前)預設整段省略;
+  // 預設顯示 06:00–23:00。凌晨(06:00 以前)預設整段省略;
   // 若有行程落在凌晨,只顯示到「最晚結束時間 + 1 小時」,其餘到 06:00 之間用細條省略。晚上超出 22:00 同樣只多顯示 1 小時
-  let lo = 6 * 60, hi = 22 * 60;
+  let lo = 6 * 60, hi = 23 * 60;
   const omit = []; // 預設省略的區段 [起, 迄]
   if (items.length) {
     const early = items.filter(x => x.s.from < 6 * 60);

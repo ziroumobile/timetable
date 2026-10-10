@@ -1,6 +1,6 @@
 :root{
   --bg:#11141b; --panel:#1b1f29; --line:#2a2f3b; --text:#e6e8ee; --muted:#8b92a3;
-  --accent:#9ec5ff; --label:34px; --n:5;
+  --accent:#9ec5ff; --label:22px; --n:5;
 }
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Noto Sans TC","Microsoft JhengHei",sans-serif}
@@ -186,3 +186,5 @@ select:disabled{opacity:.45}
 .course.lift{box-shadow:0 6px 18px rgba(0,0,0,.55);z-index:5;transform:scale(1.03)}
 .course.dragging{cursor:grabbing;opacity:.95}
 .course.dragging::after{content:attr(data-time);position:absolute;top:2px;right:3px;background:rgba(17,20,27,.85);color:#e6e8ee;border-radius:6px;padding:1px 5px;font-size:11px;font-weight:600}
+.tlabel{text-align:left;padding-left:1px}
+.plabel{justify-content:flex-start;padding-left:1px}
