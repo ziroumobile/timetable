@@ -178,3 +178,7 @@ select:disabled{opacity:.45}
 .curTag{font-size:12px;font-weight:600;margin-left:4px}
 .slot .durs .dur.add{border-style:dashed;color:var(--accent);padding:4px 12px}
 .slot .durs .dur.mine{border-color:var(--accent)}
+.durBar{display:flex;align-items:center;gap:14px;color:var(--muted);font-size:13px;margin:0 0 8px}
+.durBar .link{padding:2px 0;font-size:13px}
+.link.dangerText{color:#ff8c8c}
+.slot .durs[hidden]{display:none}

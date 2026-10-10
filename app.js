@@ -527,10 +527,9 @@ const dlg = $("#courseDlg"), form = $("#courseForm");
 const periodOpts = sel => PERIODS.map((p, i) => `<option value="${i}" ${i === sel ? "selected" : ""}>${p.l === "N" ? "N 午休" : "第 " + p.l + " 節"}</option>`).join("");
 const dayOpts = sel => DAYS.map((d, i) => `<option value="${i}" ${i === sel ? "selected" : ""}>週${d}</option>`).join("");
 
-// 時長快捷:內建幾個,使用者可用 ＋ 自己加(存在瀏覽器裡),長按自訂的可以刪掉
-const BASE_DURS = [50, 60, 90, 120, 180];
+// 時長快捷:完全由使用者自己加(編輯視窗裡的「＋ 新增時長」),可長按單個刪除或「清除全部」
 const customDurs = () => { try { return JSON.parse(localStorage.getItem("tt.durs") || "[]").filter(n => Number.isFinite(n) && n > 0 && n <= 1440); } catch { return []; } };
-const allDurs = () => [...new Set([...BASE_DURS, ...customDurs()])].sort((p, q) => p - q);
+const allDurs = () => [...new Set(customDurs())].sort((p, q) => p - q);
 const durLabel = m => m < 60 ? `${m} 分` : m % 60 ? `${Math.floor(m / 60)} 小時 ${m % 60} 分` : `${m / 60} 小時`;
 // 輸入:75、1:15、1h15、1.5h、1.5 小時 → 分鐘
 function parseDur(str) {
@@ -542,6 +541,19 @@ function parseDur(str) {
   if ((r = /^(\d+)(?:m|分|分鐘)?$/i.exec(s))) return +r[1];
   return NaN;
 }
+$("#btnDurAdd").onclick = () => {
+  const raw = prompt("新增時長(例如 75、1:15、1.5h)", "");
+  if (raw === null) return;
+  const v = parseDur(raw);
+  if (Number.isNaN(v) || v <= 0 || v > 1440) return toast("時長格式不對,請輸入像 75、1:15 或 1.5h");
+  if (allDurs().includes(v)) return toast("這個時長已經有了");
+  localStorage.setItem("tt.durs", JSON.stringify([...customDurs(), v])); refreshAllDurs(); toast(`已新增 ${durLabel(v)}`);
+};
+$("#btnDurClear").onclick = () => {
+  if (!customDurs().length) return toast("目前沒有自訂時長");
+  if (!confirm("清除全部自訂時長?")) return;
+  localStorage.removeItem("tt.durs"); refreshAllDurs(); toast("已清除全部時長");
+};
 const refreshAllDurs = () => document.querySelectorAll("#slots .slot").forEach(r => r._durs?.());
 function addSlotRow(s) {
   const div = document.createElement("div");
@@ -568,21 +580,13 @@ function addSlotRow(s) {
     f.onchange = () => { const v = norm(f); if (!Number.isNaN(v)) { t.value = fmt(Math.min(1440, v + dur)); t.classList.remove("bad"); } };
     t.onchange = () => { const v = norm(t), fv = parseTimeInput(f.value); if (!Number.isNaN(v) && !Number.isNaN(fv) && v > fv) dur = v - fv; };
     div._durs = () => {
-      const box = div.querySelector(".durs"), mine = new Set(customDurs());
-      box.innerHTML = "<span>時長</span>" + allDurs().map(m => `<button type="button" class="dur${mine.has(m) && !BASE_DURS.includes(m) ? " mine" : ""}" data-m="${m}">${durLabel(m)}</button>`).join("") + '<button type="button" class="dur add" title="新增自訂時長">＋</button>';
-      box.querySelectorAll(".dur[data-m]").forEach(b => {
+      const box = div.querySelector(".durs"), list = allDurs();
+      box.hidden = !list.length;
+      box.innerHTML = list.length ? "<span>時長</span>" + list.map(m => `<button type="button" class="dur" data-m="${m}">${durLabel(m)}</button>`).join("") : "";
+      box.querySelectorAll(".dur").forEach(b => {
         const apply = () => { const fv = parseTimeInput(f.value); if (Number.isNaN(fv)) return toast("先輸入開始時間"); dur = +b.dataset.m; t.value = fmt(Math.min(1440, fv + dur)); t.classList.remove("bad"); };
-        if (b.classList.contains("mine")) bindPress(b, () => { if (confirm(`刪除自訂時長「${b.textContent}」?`)) { localStorage.setItem("tt.durs", JSON.stringify(customDurs().filter(n => n !== +b.dataset.m))); refreshAllDurs(); } }, apply);
-        else b.onclick = apply;
+        bindPress(b, () => { if (confirm(`刪除時長「${b.textContent}」?`)) { localStorage.setItem("tt.durs", JSON.stringify(customDurs().filter(n => n !== +b.dataset.m))); refreshAllDurs(); } }, apply);
       });
-      box.querySelector(".add").onclick = () => {
-        const raw = prompt("新增自訂時長(例如 75、1:15、1.5h)", "");
-        if (raw === null) return;
-        const v = parseDur(raw);
-        if (Number.isNaN(v) || v <= 0 || v > 1440) return toast("時長格式不對,請輸入像 75、1:15 或 1.5h");
-        if (allDurs().includes(v)) return toast("這個時長已經有了");
-        localStorage.setItem("tt.durs", JSON.stringify([...customDurs(), v])); refreshAllDurs(); toast(`已新增 ${durLabel(v)}`);
-      };
     };
     div._durs();
   }

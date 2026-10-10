@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="行程">
-<link rel="stylesheet" href="style.css?v=36">
+<link rel="stylesheet" href="style.css?v=37">
 </head>
 <body>
 <header>
@@ -70,6 +70,7 @@
     <label>備註(選填)<textarea name="note" rows="2" maxlength="300"></textarea></label>
     <div class="swatches" id="swatches"></div>
     <h3>時間</h3>
+    <div class="durBar"><span>時長快捷</span><button type="button" id="btnDurAdd" class="link">＋ 新增時長</button><button type="button" id="btnDurClear" class="link dangerText">清除全部</button></div>
     <div id="slots"></div>
     <button type="button" id="addSlot" class="link">＋ 新增時段</button>
     <div class="actions">
@@ -223,7 +224,7 @@
 <div id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="config.js?v=36"></script>
-<script src="app.js?v=36"></script>
+<script src="config.js?v=37"></script>
+<script src="app.js?v=37"></script>
 </body>
 </html>
