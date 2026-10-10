@@ -612,8 +612,8 @@ const refreshAllDurs = () => document.querySelectorAll("#slots .slot").forEach(r
 function addSlotRow(s) {
   const div = document.createElement("div");
   div.className = "slot";
-  const roomInput = `<input class="room" placeholder="此時段地點(選填,預設同上)" value="${esc(s.room || "")}">` +
-    `<input class="snote" placeholder="此時段備註(選填)" maxlength="100" value="${esc(s.note || "")}">`;
+  const roomInput = `<div class="rn"><input class="room" placeholder="地點(選填)" value="${esc(s.room || "")}">` +
+    `<input class="snote" placeholder="備註(選填)" maxlength="100" value="${esc(s.note || "")}"></div>`;
   if (state.opt.period) {
     div.innerHTML = `<select class="d">${dayOpts(s.day)}</select>
       <select class="s">${periodOpts(periodAtOrAfter(s.from))}</select>
@@ -1048,3 +1048,11 @@ $("#weeklyForm").onsubmit = e => {
   $("#wkText").value = ""; wkDays = new Set(); renderWkDays(); renderWeekly();
 };
 renderWeeklyBadge();
+
+// ---------- 版本號:由 index.html 的 ?v=N 換算成 v0.xx.xx(十位數 = 中間、個位數 = 最後,N=41 → v0.04.01) ----------
+(function () {
+  const src = document.querySelector('script[src^="app.js"]')?.getAttribute("src") || "";
+  const n = parseInt(new URLSearchParams(src.split("?")[1] || "").get("v"), 10);
+  const p2 = x => String(x).padStart(2, "0");
+  $("#appVer").textContent = Number.isFinite(n) ? `v0.${p2(Math.floor(n / 10))}.${p2(n % 10)}` : "—";
+})();

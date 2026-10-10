@@ -192,3 +192,7 @@ select:disabled{opacity:.45}
 .slotNote{display:block;font-size:13px;color:var(--muted);white-space:pre-wrap;word-break:break-word;margin-top:1px;font-weight:400}
 .info li.cur .slotNote{color:#ff9a9a}
 #infoTotal{color:#ff6b6b;font-weight:700}
+.slot .rn{grid-column:1 / -1;display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.slot .rn input{grid-column:auto}
+.verLine{margin:14px 0 0;font-size:12px;text-align:center}
+.verLine b{color:var(--text);font-weight:600}
