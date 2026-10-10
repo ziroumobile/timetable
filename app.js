@@ -558,6 +558,7 @@ function showInfo(c, slot, rest) {
   const mark = c.slots.length > 1 ? slot : null; // 只有一個時段就不標紅
   $("#infoRoom").hidden = !!rest; $("#infoRoom").previousElementSibling.hidden = !!rest;
   $("#btnInfoEdit").hidden = !!rest;
+  $("#btnInfoCopy").hidden = !!rest;
   $("#infoName").textContent = c.name;
   $("#infoRoom").textContent = c.room || "—";
   $("#infoNoteBox").hidden = !c.note;
@@ -566,6 +567,15 @@ function showInfo(c, slot, rest) {
     .map(s => `<li${mark && s.day === mark.day && s.from === mark.from && s.to === mark.to ? ' class="cur"' : ""}>週${DAYS[s.day]} ${fmt(s.from)}–${fmt(s.to)}${s.room && s.room !== c.room ? ` <span class="muted">· ${esc(s.room)}</span>` : ""}${mark && s.day === mark.day && s.from === mark.from && s.to === mark.to ? " <b class=\"curTag\">‹ 這一節</b>" : ""}${s.note ? `<small class="slotNote">${esc(s.note)}</small>` : ""}</li>`).join("");
   $("#infoTotal").textContent = fmtDur(slot ? Math.max(0, slot.to - slot.from) : c.slots.reduce((t, s) => t + Math.max(0, s.to - s.from), 0));
   $("#btnInfoEdit").onclick = () => { $("#infoDlg").close(); openCourse(c); };
+  // 複製:在同一個時間再產生一份一模一樣的行程(只複製你點的那一節),可以接著拖動調整
+  $("#btnInfoCopy").onclick = async () => {
+    if (isLocked(c.semester)) return toast("這個日期簿已鎖定,先解除鎖定才能複製");
+    const copy = { ...c, id: uid(), slots: (slot ? [slot] : c.slots).map(s => ({ ...s })) };
+    $("#infoDlg").close();
+    state.courses.push(copy); renderMain();
+    toast("已複製,同一時間會多一個,可以拖動調整");
+    try { await store.upsert(copy); } catch (err) { toast("複製失敗:" + err.message); await reload(); }
+  };
   const gb = $("#btnInfoGhost");
   gb.hidden = !slot;
   if (slot) {
