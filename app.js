@@ -185,19 +185,29 @@ function buildAxis() {
     return { nDays, order, items, lines, total: y, yRange, toTime, yMin };
   }
 
-  // 預設顯示 06:00–23:00。凌晨(06:00 以前)預設整段省略;
-  // 若有行程落在凌晨,只顯示到「最晚結束時間 + 1 小時」,其餘到 06:00 之間用細條省略。晚上超出 22:00 同樣只多顯示 1 小時
+  // 顯示範圍依「有行程的時間」裁切,沒有行程的頭尾整點不顯示:
+  //  · 凌晨(06:00 以前)有行程:從那個整點開始顯示,最多顯示到最後一個行程結束的整點(例如行程在 1:10 → 顯示到 2:00);
+  //    接著到白天第一個有行程的整點之間用細條省略(例如 6:00 沒行程就從 7:00 繼續)
+  //  · 白天:從第一個有行程的整點開始,到最後一個行程結束的整點為止(23:00 沒行程就停在 23 點以前)
+  //  · 完全沒有行程時,預設顯示 06:00–23:00
   let lo = 6 * 60, hi = 23 * 60;
   const omit = []; // 預設省略的區段 [起, 迄]
   if (items.length) {
-    const early = items.filter(x => x.s.from < 6 * 60);
-    const mx = Math.max(...items.map(x => x.s.to));
+    const H = 60, early = items.filter(x => x.s.from < 6 * H), main = items.filter(x => x.s.to > 6 * H);
+    let eLo = null, eHi = null, mLo = null, mHi = null;
     if (early.length) {
-      lo = Math.max(0, Math.floor(Math.min(...early.map(x => x.s.from)) / 60) * 60 - 60);
-      const eHi = Math.min(6 * 60, Math.ceil(Math.max(...early.map(x => x.s.to)) / 60) * 60 + 60);
-      if (eHi < 6 * 60) omit.push([eHi, 6 * 60]);
+      eLo = Math.floor(Math.min(...early.map(x => x.s.from)) / H) * H;
+      eHi = Math.min(6 * H, Math.ceil(Math.max(...early.map(x => x.s.to)) / H) * H);
     }
-    if (mx > hi) hi = Math.min(24 * 60, Math.ceil(mx / 60) * 60 + 60);
+    if (main.length) {
+      mLo = Math.floor(Math.min(...main.map(x => Math.max(x.s.from, 6 * H))) / H) * H;
+      mHi = Math.ceil(Math.max(...main.map(x => x.s.to)) / H) * H;
+      if (mHi - mLo < 4 * H) mHi = Math.min(24 * H, mLo + 4 * H); // 至少留 4 小時,才有地方點選新增
+      if (mHi - mLo < 4 * H) mLo = mHi - 4 * H;
+    }
+    if (eLo !== null && mLo !== null) { lo = eLo; hi = mHi; if (mLo > eHi) omit.push([eHi, mLo]); }
+    else if (eLo !== null) { lo = eLo; hi = Math.max(eHi, eLo + 4 * H); }
+    else { lo = mLo; hi = mHi; }
   }
   const px = HOUR_PX / 60, BRK = 26, keys = keyHours();
 
