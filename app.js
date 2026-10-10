@@ -553,7 +553,7 @@ function showInfo(c, slot, rest) {
   $("#infoNoteBox").hidden = !c.note;
   $("#infoNote").textContent = c.note || "";
   $("#infoTimes").innerHTML = c.slots.slice().sort((p, q) => p.day - q.day || p.from - q.from)
-    .map(s => `<li${mark && s.day === mark.day && s.from === mark.from && s.to === mark.to ? ' class="cur"' : ""}>週${DAYS[s.day]} ${fmt(s.from)}–${fmt(s.to)}${s.room && s.room !== c.room ? ` <span class="muted">· ${esc(s.room)}</span>` : ""}${mark && s.day === mark.day && s.from === mark.from && s.to === mark.to ? " <b class=\"curTag\">‹ 這一節</b>" : ""}</li>`).join("");
+    .map(s => `<li${mark && s.day === mark.day && s.from === mark.from && s.to === mark.to ? ' class="cur"' : ""}>週${DAYS[s.day]} ${fmt(s.from)}–${fmt(s.to)}${s.room && s.room !== c.room ? ` <span class="muted">· ${esc(s.room)}</span>` : ""}${mark && s.day === mark.day && s.from === mark.from && s.to === mark.to ? " <b class=\"curTag\">‹ 這一節</b>" : ""}${s.note ? `<small class="slotNote">${esc(s.note)}</small>` : ""}</li>`).join("");
   $("#infoTotal").textContent = fmtDur(slot ? Math.max(0, slot.to - slot.from) : c.slots.reduce((t, s) => t + Math.max(0, s.to - s.from), 0));
   $("#btnInfoEdit").onclick = () => { $("#infoDlg").close(); openCourse(c); };
   const gb = $("#btnInfoGhost");
@@ -612,7 +612,8 @@ const refreshAllDurs = () => document.querySelectorAll("#slots .slot").forEach(r
 function addSlotRow(s) {
   const div = document.createElement("div");
   div.className = "slot";
-  const roomInput = `<input class="room" placeholder="此時段地點(選填,預設同上)" value="${esc(s.room || "")}">`;
+  const roomInput = `<input class="room" placeholder="此時段地點(選填,預設同上)" value="${esc(s.room || "")}">` +
+    `<input class="snote" placeholder="此時段備註(選填)" maxlength="100" value="${esc(s.note || "")}">`;
   if (state.opt.period) {
     div.innerHTML = `<select class="d">${dayOpts(s.day)}</select>
       <select class="s">${periodOpts(periodAtOrAfter(s.from))}</select>
@@ -650,10 +651,11 @@ function addSlotRow(s) {
 function readSlot(r) {
   const day = +r.querySelector(".d").value;
   const room = r.querySelector(".room").value.trim() || undefined;
+  const note = r.querySelector(".snote").value.trim() || undefined;
   if (state.opt.period) {
-    return { day, from: PERIODS[+r.querySelector(".s").value].s, to: PERIODS[+r.querySelector(".e").value].e, room };
+    return { day, from: PERIODS[+r.querySelector(".s").value].s, to: PERIODS[+r.querySelector(".e").value].e, room, note };
   }
-  return { day, from: parseTimeInput(r.querySelector(".from").value), to: parseTimeInput(r.querySelector(".to").value), room };
+  return { day, from: parseTimeInput(r.querySelector(".from").value), to: parseTimeInput(r.querySelector(".to").value), room, note };
 }
 
 // ---------- 常用詞 ----------
