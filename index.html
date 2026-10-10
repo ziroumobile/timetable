@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="行程">
-<link rel="stylesheet" href="style.css?v=31">
+<link rel="stylesheet" href="style.css?v=32">
 </head>
 <body>
 <header>
@@ -35,6 +35,7 @@
     <b id="mTitle"></b>
     <button id="mNext" class="icon" title="下個月">›</button>
     <div class="spacer"></div>
+    <button id="mSheets" class="chip" title="選擇行事曆要顯示哪些課表">課表</button>
     <button id="mToday" class="chip">今天</button>
   </div>
   <div id="mDow" class="mGrid dow"></div>
@@ -142,6 +143,17 @@
   </div>
 </dialog>
 
+<!-- 行事曆顯示哪些課表 dialog -->
+<dialog id="calDlg">
+  <div class="info">
+    <h2>行事曆要顯示的課表</h2>
+    <label class="check"><input type="checkbox" id="calFollow"> 只顯示目前選的課表(預設)</label>
+    <h3>或自己勾選</h3>
+    <div id="calList" class="calList"></div>
+    <div class="actions"><button type="button" id="calAll" class="link">全選</button><div class="spacer"></div><button type="button" id="btnCalClose" class="primary">完成</button></div>
+  </div>
+</dialog>
+
 <!-- 設定 dialog -->
 <dialog id="setDlg">
   <form method="dialog">
@@ -189,7 +201,7 @@
 <div id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="config.js?v=31"></script>
-<script src="app.js?v=31"></script>
+<script src="config.js?v=32"></script>
+<script src="app.js?v=32"></script>
 </body>
 </html>

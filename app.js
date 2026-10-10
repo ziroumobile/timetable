@@ -20,7 +20,7 @@ const state = {
   courses: [],
   semester: localStorage.getItem(LS.sem) || defaultSemester(),
   semesters: JSON.parse(localStorage.getItem(LS.sems) || "[]"),
-  opt: Object.assign({ weekend: true, sunFirst: false, rest: false, notifyOn: false, notifyLead: 0, off: [], locked: [], ghost: [], night: false, period: false, keys: "7, 12, 18" }, JSON.parse(localStorage.getItem(LS.opt) || "{}")),
+  opt: Object.assign({ weekend: true, sunFirst: false, rest: false, notifyOn: false, notifyLead: 0, calSheets: null, off: [], locked: [], ghost: [], night: false, period: false, keys: "7, 12, 18" }, JSON.parse(localStorage.getItem(LS.opt) || "{}")),
   user: null,
   view: "week",            // week = 每週課表(預設), month = 行事曆(從左上選單切換)
   anchor: new Date(),      // 目前選的日期(決定哪一週)
@@ -243,6 +243,24 @@ function renderWeekBar() {
   const s = weekStart(state.anchor), e = addDays(s, 6), f = d => `${d.getMonth() + 1}/${d.getDate()}`;
   $("#weekLbl").textContent = `${s.getFullYear()}年 ${f(s)} – ${f(e)}`;
 }
+// 行事曆要顯示哪些課表:null = 跟著目前選的課表(預設),否則用勾選的清單
+const calSheets = () => state.opt.calSheets ? state.opt.calSheets : [state.semester];
+function renderCalPicker() {
+  const follow = !state.opt.calSheets, chosen = new Set(calSheets());
+  $("#calFollow").checked = follow;
+  $("#calList").innerHTML = [...state.semesters].sort().map(s => `<label class="check${follow ? " dis" : ""}"><input type="checkbox" value="${esc(s)}" ${chosen.has(s) ? "checked" : ""} ${follow ? "disabled" : ""}> ${esc(s)}${isLocked(s) ? " 🔒" : ""}</label>`).join("");
+  $("#calList").querySelectorAll("input").forEach(i => { i.onchange = () => {
+    state.opt.calSheets = [...$("#calList").querySelectorAll("input:checked")].map(x => x.value);
+    persistMeta(); renderMonth();
+  }; });
+}
+$("#mSheets").onclick = () => { renderCalPicker(); $("#calDlg").showModal(); };
+$("#calFollow").onchange = e => {
+  state.opt.calSheets = e.target.checked ? null : [...calSheets()];
+  persistMeta(); renderCalPicker(); renderMonth();
+};
+$("#calAll").onclick = () => { state.opt.calSheets = [...state.semesters]; persistMeta(); renderCalPicker(); renderMonth(); };
+$("#btnCalClose").onclick = () => $("#calDlg").close();
 function renderMonth() {
   const { y, m } = state.month;
   $("#mTitle").textContent = `${y}年${m + 1}月`;
@@ -250,7 +268,9 @@ function renderMonth() {
   $("#mDow").innerHTML = labels.map(i => `<div>${DAYS[i]}</div>`).join("");
   const first = new Date(y, m, 1), start = weekStart(first);
   const rows = Math.ceil((Math.round((first - start) / 864e5) + new Date(y, m + 1, 0).getDate()) / 7);
-  const cur = state.courses.filter(c => c.semester === state.semester);
+  const sheets = calSheets();
+  const cur = state.courses.filter(c => sheets.includes(c.semester));
+  $("#mSheets").textContent = state.opt.calSheets ? `課表 ${sheets.length}` : "課表";
   const off = new Set(state.opt.off || []), today = new Date();
   let html = "";
   for (let i = 0; i < rows * 7; i++) {
