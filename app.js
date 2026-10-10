@@ -185,19 +185,26 @@ function buildAxis() {
     return { nDays, order, items, lines, total: y, yRange, toTime, yMin };
   }
 
-  // 預設顯示 06:00–22:00;有行程超出才往外多顯示 1 小時
+  // 預設顯示 06:00–22:00。凌晨(06:00 以前)預設整段省略;
+  // 若有行程落在凌晨,只顯示到「最晚結束時間 + 1 小時」,其餘到 06:00 之間用細條省略。晚上超出 22:00 同樣只多顯示 1 小時
   let lo = 6 * 60, hi = 22 * 60;
+  const omit = []; // 預設省略的區段 [起, 迄]
   if (items.length) {
-    const mn = Math.min(...items.map(x => x.s.from)), mx = Math.max(...items.map(x => x.s.to));
-    if (mn < lo) lo = Math.max(0, Math.floor(mn / 60) * 60 - 60);
+    const early = items.filter(x => x.s.from < 6 * 60);
+    const mx = Math.max(...items.map(x => x.s.to));
+    if (early.length) {
+      lo = Math.max(0, Math.floor(Math.min(...early.map(x => x.s.from)) / 60) * 60 - 60);
+      const eHi = Math.min(6 * 60, Math.ceil(Math.max(...early.map(x => x.s.to)) / 60) * 60 + 60);
+      if (eHi < 6 * 60) omit.push([eHi, 6 * 60]);
+    }
     if (mx > hi) hi = Math.min(24 * 60, Math.ceil(mx / 60) * 60 + 60);
   }
   const px = HOUR_PX / 60, BRK = 26, keys = keyHours();
 
   // 開啟休息時:每一天都沒行程、且超過 4 小時的空檔,只留前 2 小時和後 2 小時,中間省略
-  const cuts = [];
+  const cuts = omit.map(r => r.slice());
   if (state.opt.rest) {
-    const iv = items.map(({ s }) => [Math.max(lo, s.from), Math.min(hi, s.to)]).filter(([p, q]) => q > p).sort((p, q) => p[0] - q[0]);
+    const iv = [...items.map(({ s }) => [Math.max(lo, s.from), Math.min(hi, s.to)]), ...omit].filter(([p, q]) => q > p).sort((p, q) => p[0] - q[0]);
     let pos = lo; const free = [];
     for (const [p, q] of iv) { if (p > pos) free.push([pos, p]); pos = Math.max(pos, q); }
     if (pos < hi) free.push([pos, hi]);
@@ -206,6 +213,7 @@ function buildAxis() {
       const cs = Math.ceil((fs0 + 120) / 60) * 60, ce = Math.floor((fe - 120) / 60) * 60;
       if (ce - cs >= 60) cuts.push([cs, ce]);
     }
+    cuts.sort((p, q) => p[0] - q[0]);
   }
   const segs = [], breaks = []; let m = lo, y = 0;
   for (const [cs, ce] of cuts) {
