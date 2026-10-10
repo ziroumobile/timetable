@@ -243,7 +243,17 @@ function buildAxis() {
       if (!g) { const b = breaks.find(b => yy >= b.y && yy < b.y + b.h); return b ? [b.from - 60, b.from] : [hi - 60, hi]; }
       const mm = Math.floor((g.m0 + (yy - g.y0) / px) / 60) * 60; return [mm, mm + 60];
     },
-    yMin: yy => { const g = segs.find(g => yy >= g.y0 - 0.5 && yy <= g.y0 + (g.m1 - g.m0) * px + 0.5) || segs[segs.length - 1]; return Math.round(g.m0 + (yy - g.y0) / px); },
+    yMin: yy => {
+      if (yy <= segs[0].y0) return segs[0].m0;
+      for (let i = 0; i < segs.length; i++) {
+        const g = segs[i], end = g.y0 + (g.m1 - g.m0) * px;
+        if (yy <= end + 0.5) return Math.round(g.m0 + (yy - g.y0) / px);
+        const nx = segs[i + 1];
+        if (nx && yy < nx.y0 - 0.5) return (yy - end < nx.y0 - yy) ? g.m1 : nx.m0; // 落在「省略」細條上:吸附到較近的一邊
+      }
+      return segs[segs.length - 1].m1;
+    },
+    cuts: cuts.map(r => r.slice()),
   };
 }
 
@@ -518,7 +528,15 @@ function enableDrag(el, it, ax) {
       el.classList.add("dragging", "lift");
     }
     const lo = ax.lo ?? 0, hi = ax.hi ?? 1440;
-    newFrom = Math.round((startFrom + dy / PX_MIN) / 5) * 5;
+    const startTop = ax.yRange({ from: startFrom, to: startFrom + dur })[0];
+    newFrom = Math.round(ax.yMin(startTop + dy) / 5) * 5;
+    newFrom = Math.max(lo, Math.min(hi - dur, newFrom));
+    for (const [cs, ce] of ax.cuts || []) { // 不能停在被省略的時段裡:推到最近的可見邊緣
+      if (newFrom < ce && newFrom + dur > cs) {
+        const up = cs - dur, down = ce;
+        newFrom = (up >= lo && (Math.abs(up - newFrom) <= Math.abs(down - newFrom) || down + dur > hi)) ? up : down;
+      }
+    }
     newFrom = Math.max(lo, Math.min(hi - dur, newFrom));
     el.style.top = (ax.yRange({ from: newFrom, to: newFrom + dur })[0] + 2) + "px";
     // 左右:找出指標所在的那一欄(超出邊界就吸附到最左/最右欄)
@@ -897,10 +915,10 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catc
 
 // ---------- 新手教學 ----------
 const TUT = [
-  { t: "歡迎使用行程表 👋", d: "點空白格或右下角的 ＋ 就能新增行程(左上角 ☰ 可以切換行事曆),點方塊看詳情,長按方塊才是編輯。一個行程可以有多個時段,例如週二和週四都有。" },
-  { t: "短按看詳情、長按編輯", d: "點一下行程方塊,會顯示完整的名稱、地點、所有上課時間和備註。按住約半秒才會進入編輯。詳情視窗裡也有「編輯」按鈕。" },
+  { t: "歡迎使用行程表 👋", pt: ["#btnAdd", "#btnMenu"], d: "點空白格或右下角的 ＋ 就能新增行程(左上角 ☰ 可以切換行事曆),點方塊看詳情,長按方塊才是編輯。一個行程可以有多個時段,例如週二和週四都有。" },
+  { t: "短按看詳情、長按編輯", pt: [".course:not(.rest)", "#body"], d: "點一下行程方塊,會顯示完整的名稱、地點、所有上課時間和備註。按住約半秒才會進入編輯。詳情視窗裡也有「編輯」按鈕。" },
   { t: "常用詞", d: "在「名稱」「地點」輸入條下面按 ＋,可以把目前輸入的字存成常用詞。之後點一下標籤就自動填入,按 ✕ 可移除。" },
-  { t: "補假 / 停課", d: "點上方的星期標題(一、二、三…),那一天的行程會整天變半透明;再點一次就恢復。" },
+  { t: "補假 / 停課", pt: ["#days .dh"], d: "點上方的星期標題(一、二、三…),那一天的行程會整天變半透明;再點一次就恢復。" },
 ];
 let tutI = 0;
 const TUT_KEY = "tt.tutorial.hide";
@@ -911,8 +929,36 @@ function renderTut() {
   $("#tutDots").innerHTML = TUT.map((_, i) => `<i class="${i === tutI ? "on" : ""}"></i>`).join("");
   $("#btnTutPrev").style.visibility = tutI ? "visible" : "hidden";
   $("#btnTutNext").textContent = last ? "完成" : "下一頁";
+  requestAnimationFrame(drawTutLines);
 }
-function openTutorial() { tutI = 0; renderTut(); $("#tutHide").checked = localStorage.getItem(TUT_KEY) === "1"; $("#tutDlg").showModal(); }
+// 教學指示線:從教學卡片拉一條線到畫面上對應的位置,並在目標外圍畫一圈
+function drawTutLines() {
+  const svg = $("#tutLines"), dlgEl = $("#tutDlg");
+  svg.innerHTML = "";
+  if (!dlgEl.open) return;
+  const W = innerWidth, Ht = innerHeight, dr = dlgEl.getBoundingClientRect();
+  svg.setAttribute("viewBox", `0 0 ${W} ${Ht}`); svg.setAttribute("width", W); svg.setAttribute("height", Ht);
+  let out = '<defs><marker id="tutArr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#ff6b6b"/></marker></defs>';
+  const used = new Set();
+  for (const sel of TUT[tutI].pt || []) {
+    const el = [...document.querySelectorAll(sel)].find(x => x.getClientRects().length && !used.has(x));
+    if (!el) continue;
+    // 找得到「行程方塊」就指它,沒有才退而指整個課表區
+    if (sel === "#body" && document.querySelector(".course:not(.rest)")) continue;
+    used.add(el);
+    const r = el.getBoundingClientRect();
+    if (r.bottom < 0 || r.top > Ht || r.right < 0 || r.left > W) continue;
+    const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    if (cx > dr.left && cx < dr.right && cy > dr.top && cy < dr.bottom) continue; // 目標被教學卡片蓋住就不畫
+    const ax = Math.min(Math.max(cx, dr.left), dr.right), ay = Math.min(Math.max(cy, dr.top), dr.bottom);
+    const tx = Math.min(Math.max(ax, r.left - 4), r.right + 4), ty = Math.min(Math.max(ay, r.top - 4), r.bottom + 4);
+    out += `<rect x="${r.left - 4}" y="${r.top - 4}" width="${r.width + 8}" height="${r.height + 8}" rx="10" fill="rgba(255,107,107,.12)" stroke="#ff6b6b" stroke-width="2.5" stroke-dasharray="6 4"/>`;
+    out += `<line x1="${ax}" y1="${ay}" x2="${tx}" y2="${ty}" stroke="#ff6b6b" stroke-width="2.5" marker-end="url(#tutArr)"/>`;
+  }
+  svg.innerHTML = out;
+}
+window.addEventListener("resize", () => { if ($("#tutDlg").open) drawTutLines(); });
+function openTutorial() { tutI = 0; renderTut(); $("#tutHide").checked = localStorage.getItem(TUT_KEY) === "1"; $("#tutDlg").showModal(); drawTutLines(); }
 $("#btnTutPrev").onclick = () => { tutI = Math.max(0, tutI - 1); renderTut(); };
 $("#btnTutNext").onclick = () => { if (tutI < TUT.length - 1) { tutI++; renderTut(); } else $("#tutDlg").close(); };
 $("#btnTutSkip").onclick = () => $("#tutDlg").close();
@@ -1083,3 +1129,11 @@ renderWeeklyBadge();
   const p2 = x => String(x).padStart(2, "0");
   $("#appVer").textContent = Number.isFinite(n) ? `v0.${p2(Math.floor(n / 10))}.${p2(n % 10)}` : "—";
 })();
+
+// ---------- 更新日誌(最近 10 次,濃縮成三段) ----------
+const CHANGELOG = [
+  "拖動與複製(v0.03.08–v0.04.05):行程方塊可以上下拖動改時間、左右拖動改星期(手機先按住約 0.25 秒);詳情視窗新增「複製」,會在同一時間再多一個可以拖動的行程。",
+  "時間軸(v0.03.09–v0.04.03):預設從有行程的整點裁切,凌晨與前後沒行程的整點會省略並用細條標示;休息時段、左側時間欄(更窄、靠左)和預設到 23 點也一併調整。",
+  "編輯與詳情(v0.03.07、v0.04.01–v0.04.06):時長快捷改成自己新增或清除;每個時段的地點與備註並排;詳情的總時長標紅;設定顯示版本與這份日誌;新手教學加上指示線;修正拖動遇到休息與省略區段的問題。",
+];
+$("#changelog").innerHTML = CHANGELOG.map(t => `<p>${esc(t)}</p>`).join("");

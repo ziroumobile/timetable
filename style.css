@@ -196,3 +196,7 @@ select:disabled{opacity:.45}
 .slot .rn input{grid-column:auto}
 .verLine{margin:14px 0 0;font-size:12px;text-align:center}
 .verLine b{color:var(--text);font-weight:600}
+.changelog{margin-top:6px;font-size:12px;line-height:1.55;color:var(--muted)}
+.changelog p{margin:0 0 6px}
+.tutLines{position:fixed;left:0;top:0;width:100vw;height:100vh;pointer-events:none;overflow:visible}
+#tutDlg .info{position:relative}
