@@ -493,24 +493,26 @@ $("#btnSheetClear").onclick = async () => {
   catch (err) { toast("清除失敗:" + err.message); await reload(); }
 };
 
-// ---------- 同一天上下拖動調整時間 ----------
-// 滑鼠:按住直接拖。手機:按住約 0.25 秒(會震動一下、方塊浮起)再上下拖;沒拖就繼續按會進入編輯
+// ---------- 拖動調整時間 / 日期 ----------
+// 滑鼠:按住直接拖。手機:按住約 0.25 秒(會震動一下、方塊浮起)再拖;沒拖就繼續按會進入編輯
+// 上下 = 改時間(每 5 分鐘一格),左右 = 改星期(移到別天)
 function enableDrag(el, it, ax) {
   const PX_MIN = HOUR_PX / 60, dur = it.s.to - it.s.from;
-  let mode = null, timer = null, y0 = 0, startFrom = it.s.from, newFrom = it.s.from, id = null;
-  const reset = () => { clearTimeout(timer); timer = null; mode = null; el.classList.remove("lift", "dragging"); el.removeAttribute("data-time"); };
+  let mode = null, timer = null, x0 = 0, y0 = 0, id = null;
+  let startFrom = it.s.from, newFrom = it.s.from, startDay = it.s.day, newDay = it.s.day;
+  const reset = () => { clearTimeout(timer); timer = null; mode = null; el.classList.remove("lift", "dragging"); el.removeAttribute("data-time"); el.style.translate = ""; };
   el.addEventListener("pointerdown", e => {
     if (e.button !== 0 && e.pointerType === "mouse") return;
-    y0 = e.clientY; startFrom = newFrom = it.s.from; id = e.pointerId;
+    x0 = e.clientX; y0 = e.clientY; startFrom = newFrom = it.s.from; startDay = newDay = it.s.day; id = e.pointerId;
     if (e.pointerType === "mouse") { mode = "ready"; return; }
     timer = setTimeout(() => { mode = "ready"; el.classList.add("lift"); navigator.vibrate?.(10); }, 250);
   });
   el.addEventListener("touchmove", e => { if (mode) e.preventDefault(); }, { passive: false });
   el.addEventListener("pointermove", e => {
-    const dy = e.clientY - y0;
-    if (!mode) { if (timer && Math.abs(dy) > 8) { clearTimeout(timer); timer = null; } return; } // 手機:還沒浮起就移動 = 在捲動頁面
+    const dx = e.clientX - x0, dy = e.clientY - y0;
+    if (!mode) { if (timer && Math.hypot(dx, dy) > 8) { clearTimeout(timer); timer = null; } return; } // 手機:還沒浮起就移動 = 在捲動頁面
     if (mode === "ready") {
-      if (Math.abs(dy) < (e.pointerType === "mouse" ? 4 : 6)) return;
+      if (Math.hypot(dx, dy) < (e.pointerType === "mouse" ? 4 : 6)) return;
       mode = "drag"; el._cancelPress?.(); el._suppress = true;
       try { el.setPointerCapture(id); } catch {}
       el.classList.add("dragging", "lift");
@@ -519,18 +521,23 @@ function enableDrag(el, it, ax) {
     newFrom = Math.round((startFrom + dy / PX_MIN) / 5) * 5;
     newFrom = Math.max(lo, Math.min(hi - dur, newFrom));
     el.style.top = (ax.yRange({ from: newFrom, to: newFrom + dur })[0] + 2) + "px";
-    el.dataset.time = `${fmt(newFrom)}–${fmt(newFrom + dur)}`;
+    // 左右:找出指標所在的那一欄(超出邊界就吸附到最左/最右欄)
+    const cols = [...document.querySelectorAll("#body .col")], src = el.parentElement;
+    let tgt = cols.find(c => { const r = c.getBoundingClientRect(); return e.clientX >= r.left && e.clientX < r.right; });
+    if (!tgt && cols.length) tgt = e.clientX < cols[0].getBoundingClientRect().left ? cols[0] : cols[cols.length - 1];
+    if (tgt) { newDay = +tgt.dataset.day; el.style.translate = (tgt.getBoundingClientRect().left - src.getBoundingClientRect().left) + "px 0"; }
+    el.dataset.time = `${newDay !== startDay ? "週" + DAYS[newDay] + " " : ""}${fmt(newFrom)}–${fmt(newFrom + dur)}`;
   });
   const finish = async cancel => {
-    const was = mode, moved = newFrom !== startFrom;
+    const was = mode, moved = newFrom !== startFrom || newDay !== startDay;
     reset();
     if (was !== "drag") return;
     if (cancel || !moved) { renderMain(); return; }
     if (isLocked(it.c.semester)) { toast("這個日期簿已鎖定,先解除鎖定才能移動"); renderMain(); return; }
     const oldKey = slotKey(it.c, it.s), ghost = isGhost(it.c, it.s);
-    it.s.from = newFrom; it.s.to = newFrom + dur;
+    it.s.from = newFrom; it.s.to = newFrom + dur; it.s.day = newDay;
     if (ghost) { const g = new Set(state.opt.ghost || []); g.delete(oldKey); g.add(slotKey(it.c, it.s)); state.opt.ghost = [...g]; persistMeta(); }
-    renderMain(); toast(`已移到 ${fmt(newFrom)}–${fmt(newFrom + dur)}`);
+    renderMain(); toast(`已移到 週${DAYS[newDay]} ${fmt(newFrom)}–${fmt(newFrom + dur)}`);
     try { await store.upsert(it.c); } catch (err) { toast("儲存失敗:" + err.message); await reload(); }
   };
   el.addEventListener("pointerup", () => finish(false));
